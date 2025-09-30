@@ -5,13 +5,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Dumbbell, Utensils, Users, UserPlus } from "lucide-react";
+import { Dumbbell, Utensils, Users, UserPlus, LineChart, Scale } from "lucide-react"; // Import LineChart icon
 import { NavLink } from "react-router-dom";
 import { useSession } from '@/contexts/SessionContext';
 import { Button } from '@/components/ui/button';
 import AddStudentDialog from '@/components/admin/AddStudentDialog';
 import BmrCard from '@/components/dashboard/BmrCard';
-import WeightCard from '@/components/dashboard/WeightCard'; // Import the new WeightCard
+import WeightCard from '@/components/dashboard/WeightCard';
 
 const Dashboard = () => {
   const { profile } = useSession();
@@ -94,8 +94,27 @@ const Dashboard = () => {
           </Card>
         </NavLink>
         
-        {/* Replace the static Weight Card with the new dynamic WeightCard component */}
         {!isAdmin && <WeightCard />}
+
+        {/* New Bioimpedance Card */}
+        {!isAdmin && (
+          <NavLink to="/bioimpedance" className="no-underline">
+            <Card className="hover:bg-muted/80 transition-colors h-full">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  Bioimpedância
+                </CardTitle>
+                <LineChart className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">Ver Registros</div>
+                <p className="text-xs text-muted-foreground">
+                  Acompanhe suas métricas corporais
+                </p>
+              </CardContent>
+            </Card>
+          </NavLink>
+        )}
 
         {isAdmin && (
           <Card>

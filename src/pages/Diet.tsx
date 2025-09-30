@@ -11,10 +11,10 @@ export type DietPlan = {
   meal: 'Café da Manhã' | 'Lanche da Manhã' | 'Almoço' | 'Lanche da Tarde' | 'Jantar' | 'Ceia';
   description: string;
   scheduled_time: string;
-  calories: number;
-  protein_g: number;
-  carbs_g: number;
-  fat_g: number;
+  calories: number | null;
+  protein_g: number | null;
+  carbs_g: number | null;
+  fat_g: number | null;
 };
 
 export type DietLog = {

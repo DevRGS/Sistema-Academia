@@ -23,16 +23,22 @@ import {
 } from "@/components/ui/select";
 import { showError, showSuccess } from '@/utils/toast';
 
+// Helper to transform empty strings to null for optional number fields
+const emptyStringToNull = z.preprocess(
+  (val) => (val === "" ? null : val),
+  z.coerce.number().nullable().optional()
+);
+
 const mealSchema = z.object({
   meal: z.enum(['Café da Manhã', 'Lanche da Manhã', 'Almoço', 'Lanche da Tarde', 'Jantar', 'Ceia'], {
     required_error: "Selecione um tipo de refeição."
   }),
   description: z.string().min(1, 'Descrição é obrigatória.'),
   scheduled_time: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, 'Formato de hora inválido (HH:MM).'),
-  calories: z.coerce.number().optional(),
-  protein_g: z.coerce.number().optional(),
-  carbs_g: z.coerce.number().optional(),
-  fat_g: z.coerce.number().optional(),
+  calories: emptyStringToNull,
+  protein_g: emptyStringToNull,
+  carbs_g: emptyStringToNull,
+  fat_g: emptyStringToNull,
 });
 
 type MealFormData = z.infer<typeof mealSchema>;

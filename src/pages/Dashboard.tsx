@@ -1,16 +1,39 @@
+import { useState } from 'react';
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Dumbbell, Utensils, Weight, Users } from "lucide-react";
+import { Dumbbell, Utensils, Weight, Users, UserPlus } from "lucide-react";
 import { NavLink } from "react-router-dom";
+import { useSession } from '@/contexts/SessionContext';
+import { Button } from '@/components/ui/button';
+import AddStudentDialog from '@/components/admin/AddStudentDialog';
 
 const Dashboard = () => {
+  const { profile } = useSession();
+  const [isAddStudentDialogOpen, setIsAddStudentDialogOpen] = useState(false);
+
   return (
     <div>
-      <h1 className="text-3xl font-bold mb-6">Painel de Controle</h1>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold">Painel de Controle</h1>
+        {profile?.role === 'admin' && (
+          <Button onClick={() => setIsAddStudentDialogOpen(true)}>
+            <UserPlus className="mr-2 h-4 w-4" />
+            Novo Aluno
+          </Button>
+        )}
+      </div>
+      
+      {profile?.role === 'admin' && (
+        <AddStudentDialog
+          isOpen={isAddStudentDialogOpen}
+          setIsOpen={setIsAddStudentDialogOpen}
+        />
+      )}
+
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">

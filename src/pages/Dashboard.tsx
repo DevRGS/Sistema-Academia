@@ -10,16 +10,19 @@ import { NavLink } from "react-router-dom";
 import { useSession } from '@/contexts/SessionContext';
 import { Button } from '@/components/ui/button';
 import AddStudentDialog from '@/components/admin/AddStudentDialog';
+import StudentDataForm from '@/components/student/StudentDataForm';
 
 const Dashboard = () => {
   const { profile } = useSession();
   const [isAddStudentDialogOpen, setIsAddStudentDialogOpen] = useState(false);
 
+  const isAdmin = profile?.role === 'admin';
+
   return (
-    <div>
-      <div className="flex justify-between items-center mb-6">
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Painel de Controle</h1>
-        {profile?.role === 'admin' && (
+        {isAdmin && (
           <Button onClick={() => setIsAddStudentDialogOpen(true)}>
             <UserPlus className="mr-2 h-4 w-4" />
             Novo Aluno
@@ -27,7 +30,7 @@ const Dashboard = () => {
         )}
       </div>
       
-      {profile?.role === 'admin' && (
+      {isAdmin && (
         <AddStudentDialog
           isOpen={isAddStudentDialogOpen}
           setIsOpen={setIsAddStudentDialogOpen}
@@ -77,21 +80,29 @@ const Dashboard = () => {
             </p>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Alunos Ativos
-            </CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">42</div>
-            <p className="text-xs text-muted-foreground">
-              +3 na última semana
-            </p>
-          </CardContent>
-        </Card>
+        {isAdmin && (
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
+                Alunos Ativos
+              </CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">42</div>
+              <p className="text-xs text-muted-foreground">
+                +3 na última semana
+              </p>
+            </CardContent>
+          </Card>
+        )}
       </div>
+
+      {!isAdmin && (
+        <div>
+          <StudentDataForm />
+        </div>
+      )}
     </div>
   );
 };

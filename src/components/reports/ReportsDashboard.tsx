@@ -383,7 +383,7 @@ const ReportsDashboard = () => {
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" type="category" allowDuplicatedCategory={false} />
+                    <XAxis dataKey="date" type="category" allowDuplicatedCategory={true} /> {/* Changed to true */}
                     <YAxis label={{ value: 'Peso (kg)', angle: -90, position: 'insideLeft' }} />
                     <Tooltip />
                     <Legend />

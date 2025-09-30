@@ -1,4 +1,4 @@
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { supabase } from '@/integrations/supabase/client';
@@ -24,7 +24,9 @@ import {
 import { showError, showSuccess } from '@/utils/toast';
 
 const mealSchema = z.object({
-  meal: z.enum(['Café da Manhã', 'Lanche da Manhã', 'Almoço', 'Lanche da Tarde', 'Jantar', 'Ceia']),
+  meal: z.enum(['Café da Manhã', 'Lanche da Manhã', 'Almoço', 'Lanche da Tarde', 'Jantar', 'Ceia'], {
+    required_error: "Selecione um tipo de refeição."
+  }),
   description: z.string().min(1, 'Descrição é obrigatória.'),
   scheduled_time: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, 'Formato de hora inválido (HH:MM).'),
   calories: z.coerce.number().optional(),
@@ -75,19 +77,25 @@ const AddMealDialog = ({ isOpen, setIsOpen, studentId, onMealAdded }) => {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>Refeição</Label>
-               <Select onValueChange={(value) => control.setValue('meal', value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione a refeição" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Café da Manhã">Café da Manhã</SelectItem>
-                    <SelectItem value="Lanche da Manhã">Lanche da Manhã</SelectItem>
-                    <SelectItem value="Almoço">Almoço</SelectItem>
-                    <SelectItem value="Lanche da Tarde">Lanche da Tarde</SelectItem>
-                    <SelectItem value="Jantar">Jantar</SelectItem>
-                    <SelectItem value="Ceia">Ceia</SelectItem>
-                  </SelectContent>
-                </Select>
+              <Controller
+                control={control}
+                name="meal"
+                render={({ field }) => (
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione a refeição" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Café da Manhã">Café da Manhã</SelectItem>
+                      <SelectItem value="Lanche da Manhã">Lanche da Manhã</SelectItem>
+                      <SelectItem value="Almoço">Almoço</SelectItem>
+                      <SelectItem value="Lanche da Tarde">Lanche da Tarde</SelectItem>
+                      <SelectItem value="Jantar">Jantar</SelectItem>
+                      <SelectItem value="Ceia">Ceia</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+              />
               {errors.meal && <p className="text-red-500 text-sm mt-1">{errors.meal.message}</p>}
             </div>
             <div>

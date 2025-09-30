@@ -144,7 +144,7 @@ const WorkoutSessionPage = () => {
         </div>
       </CardHeader>
       <CardContent>
-        <div>
+        <div key={currentExerciseIndex}>
           <h3 className="text-xl font-semibold mb-4">{currentExercise.name}</h3>
           <div className="space-y-4">
             {Array.from({ length: totalSets }).map((_, setIndex) => (

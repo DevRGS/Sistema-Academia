@@ -10,7 +10,7 @@ import { NavLink } from "react-router-dom";
 import { useSession } from '@/contexts/SessionContext';
 import { Button } from '@/components/ui/button';
 import AddStudentDialog from '@/components/admin/AddStudentDialog';
-import StudentDataForm from '@/components/student/StudentDataForm';
+import BmrCard from '@/components/dashboard/BmrCard';
 
 const Dashboard = () => {
   const { profile } = useSession();
@@ -38,6 +38,7 @@ const Dashboard = () => {
       )}
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {!isAdmin && <BmrCard />}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
@@ -97,12 +98,6 @@ const Dashboard = () => {
           </Card>
         )}
       </div>
-
-      {!isAdmin && (
-        <div>
-          <StudentDataForm />
-        </div>
-      )}
     </div>
   );
 };

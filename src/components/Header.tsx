@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { CircleUser, Menu, Package, Search, Dumbbell, Home, LineChart, Utensils, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -16,6 +16,7 @@ import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 
 const Header = () => {
   const { profile, signOut } = useSession();
+  const navigate = useNavigate();
 
   const navItems = [
     { to: "/dashboard", icon: <Home className="h-5 w-5" />, label: "Dashboard", adminOnly: false },
@@ -90,7 +91,7 @@ const Header = () => {
         <DropdownMenuContent align="end">
           <DropdownMenuLabel>{profile?.first_name} {profile?.last_name}</DropdownMenuLabel>
           <DropdownMenuSeparator />
-          <DropdownMenuItem>Configurações</DropdownMenuItem>
+          <DropdownMenuItem onClick={() => navigate('/settings')}>Configurações</DropdownMenuItem>
           <DropdownMenuItem>Suporte</DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={signOut}>Sair</DropdownMenuItem>

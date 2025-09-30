@@ -12,6 +12,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import WorkoutsPage from "./pages/Workouts";
 import StudentsPage from "./pages/Students";
 import WorkoutSessionPage from "./pages/WorkoutSession";
+import SettingsPage from "./pages/Settings";
 
 const queryClient = new QueryClient();
 
@@ -31,6 +32,7 @@ const App = () => (
           <Route path="/workout-session/:workoutId" element={<Layout><WorkoutSessionPage /></Layout>} />
           <Route path="/bioimpedance" element={<Layout><div>Bioimpedance Page</div></Layout>} />
           <Route path="/students" element={<Layout><StudentsPage /></Layout>} />
+          <Route path="/settings" element={<Layout><SettingsPage /></Layout>} />
         </Route>
 
         <Route path="*" element={<NotFound />} />

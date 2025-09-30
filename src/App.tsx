@@ -13,6 +13,7 @@ import WorkoutsPage from "./pages/Workouts";
 import StudentsPage from "./pages/Students";
 import WorkoutSessionPage from "./pages/WorkoutSession";
 import SettingsPage from "./pages/Settings";
+import DietPage from "./pages/Diet";
 
 const queryClient = new QueryClient();
 
@@ -27,7 +28,7 @@ const App = () => (
         
         <Route element={<ProtectedRoute />}>
           <Route path="/dashboard" element={<Layout><Dashboard /></Layout>} />
-          <Route path="/diet" element={<Layout><div>Diet Page</div></Layout>} />
+          <Route path="/diet" element={<Layout><DietPage /></Layout>} />
           <Route path="/workouts" element={<Layout><WorkoutsPage /></Layout>} />
           <Route path="/workout-session/:workoutId" element={<Layout><WorkoutSessionPage /></Layout>} />
           <Route path="/bioimpedance" element={<Layout><div>Bioimpedance Page</div></Layout>} />

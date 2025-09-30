@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { CircleUser, Menu, Package, Search, Dumbbell, Home, LineChart, Utensils, Users } from 'lucide-react';
+import { CircleUser, Menu, Package, Search, Dumbbell, Home, LineChart, Utensils, Users, Scale } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -22,6 +22,7 @@ const Header = () => {
     { to: "/dashboard", icon: <Home className="h-5 w-5" />, label: "Dashboard", adminOnly: false },
     { to: "/diet", icon: <Utensils className="h-5 w-5" />, label: "Dieta", adminOnly: false },
     { to: "/workouts", icon: <Dumbbell className="h-5 w-5" />, label: "Treinos", adminOnly: false },
+    { to: "/weight-tracking", icon: <Scale className="h-5 w-5" />, label: "Peso", adminOnly: false }, // New nav item
     { to: "/bioimpedance", icon: <LineChart className="h-5 w-5" />, label: "Bioimpedância", adminOnly: false },
     { to: "/students", icon: <Users className="h-5 w-5" />, label: "Alunos", adminOnly: true },
   ];

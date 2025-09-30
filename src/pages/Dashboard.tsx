@@ -5,12 +5,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Dumbbell, Utensils, Weight, Users, UserPlus } from "lucide-react";
+import { Dumbbell, Utensils, Users, UserPlus } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { useSession } from '@/contexts/SessionContext';
 import { Button } from '@/components/ui/button';
 import AddStudentDialog from '@/components/admin/AddStudentDialog';
 import BmrCard from '@/components/dashboard/BmrCard';
+import WeightCard from '@/components/dashboard/WeightCard'; // Import the new WeightCard
 
 const Dashboard = () => {
   const { profile } = useSession();
@@ -93,18 +94,8 @@ const Dashboard = () => {
           </Card>
         </NavLink>
         
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Peso Atual</CardTitle>
-            <Weight className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">78.5 kg</div>
-            <p className="text-xs text-muted-foreground">
-              -0.5kg desde a última pesagem
-            </p>
-          </CardContent>
-        </Card>
+        {/* Replace the static Weight Card with the new dynamic WeightCard component */}
+        {!isAdmin && <WeightCard />}
 
         {isAdmin && (
           <Card>

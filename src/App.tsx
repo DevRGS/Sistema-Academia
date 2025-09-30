@@ -14,6 +14,7 @@ import StudentsPage from "./pages/Students";
 import WorkoutSessionPage from "./pages/WorkoutSession";
 import SettingsPage from "./pages/Settings";
 import DietPage from "./pages/Diet";
+import WeightTrackingPage from "./pages/WeightTrackingPage"; // Import the new page
 
 const queryClient = new QueryClient();
 
@@ -34,6 +35,7 @@ const App = () => (
           <Route path="/bioimpedance" element={<Layout><div>Bioimpedance Page</div></Layout>} />
           <Route path="/students" element={<Layout><StudentsPage /></Layout>} />
           <Route path="/settings" element={<Layout><SettingsPage /></Layout>} />
+          <Route path="/weight-tracking" element={<Layout><WeightTrackingPage /></Layout>} /> {/* New route */}
         </Route>
 
         <Route path="*" element={<NotFound />} />

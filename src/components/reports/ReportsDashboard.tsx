@@ -4,16 +4,12 @@ import { useSession } from '@/contexts/SessionContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { LineChart, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { WeightEntry } from '@/pages/WeightTrackingPage';
 import { BioimpedanceRecord } from '@/pages/BioimpedancePage';
-import { DailyNutritionLog } from '@/pages/Dashboard'; // Assuming DailyNutritionLog type is available or defined here
-import { WorkoutLog } from '@/pages/Workouts'; // Assuming WorkoutLog type is available or defined here
-import { Activity } from 'lucide-react';
-
-// Define types for data used in reports
+// Assuming DailyNutritionLog type is available or defined here
 type DailyNutritionLog = {
   id: number;
   user_id: string;
@@ -25,6 +21,7 @@ type DailyNutritionLog = {
   created_at: string;
 };
 
+// Assuming WorkoutLog type is available or defined here
 type WorkoutLog = {
   id: number;
   user_id: string;
@@ -32,6 +29,8 @@ type WorkoutLog = {
   log_date: string;
   performance: any; // Adjust as per your actual performance data structure
 };
+import { Activity } from 'lucide-react';
+
 
 const ReportsDashboard = () => {
   const { user, loading: sessionLoading } = useSession();

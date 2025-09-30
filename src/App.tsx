@@ -15,7 +15,8 @@ import WorkoutSessionPage from "./pages/WorkoutSession";
 import SettingsPage from "./pages/Settings";
 import DietPage from "./pages/Diet";
 import WeightTrackingPage from "./pages/WeightTrackingPage";
-import BioimpedancePage from "./pages/BioimpedancePage"; // Import the new page
+import BioimpedancePage from "./pages/BioimpedancePage";
+import ReportsPage from "./pages/ReportsPage"; // Import the new ReportsPage
 
 const queryClient = new QueryClient();
 
@@ -33,7 +34,8 @@ const App = () => (
           <Route path="/diet" element={<Layout><DietPage /></Layout>} />
           <Route path="/workouts" element={<Layout><WorkoutsPage /></Layout>} />
           <Route path="/workout-session/:workoutId" element={<Layout><WorkoutSessionPage /></Layout>} />
-          <Route path="/bioimpedance" element={<Layout><BioimpedancePage /></Layout>} /> {/* Updated route */}
+          <Route path="/bioimpedance" element={<Layout><BioimpedancePage /></Layout>} />
+          <Route path="/reports" element={<Layout><ReportsPage /></Layout>} /> {/* New route for ReportsPage */}
           <Route path="/students" element={<Layout><StudentsPage /></Layout>} />
           <Route path="/settings" element={<Layout><SettingsPage /></Layout>} />
           <Route path="/weight-tracking" element={<Layout><WeightTrackingPage /></Layout>} />

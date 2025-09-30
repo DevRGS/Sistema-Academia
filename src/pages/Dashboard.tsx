@@ -5,7 +5,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Dumbbell, Utensils, Users, UserPlus, LineChart, Scale } from "lucide-react"; // Import LineChart icon
+import { Dumbbell, Utensils, Users, UserPlus, LineChart, Scale, BarChart3 } from "lucide-react"; // Import BarChart3 icon
 import { NavLink } from "react-router-dom";
 import { useSession } from '@/contexts/SessionContext';
 import { Button } from '@/components/ui/button';
@@ -96,7 +96,7 @@ const Dashboard = () => {
         
         {!isAdmin && <WeightCard />}
 
-        {/* New Bioimpedance Card */}
+        {/* Bioimpedance Card */}
         {!isAdmin && (
           <NavLink to="/bioimpedance" className="no-underline">
             <Card className="hover:bg-muted/80 transition-colors h-full">
@@ -110,6 +110,26 @@ const Dashboard = () => {
                 <div className="text-2xl font-bold">Ver Registros</div>
                 <p className="text-xs text-muted-foreground">
                   Acompanhe suas métricas corporais
+                </p>
+              </CardContent>
+            </Card>
+          </NavLink>
+        )}
+
+        {/* New Reports Card */}
+        {!isAdmin && (
+          <NavLink to="/reports" className="no-underline">
+            <Card className="hover:bg-muted/80 transition-colors h-full">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  Relatórios
+                </CardTitle>
+                <BarChart3 className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">Ver Análises</div>
+                <p className="text-xs text-muted-foreground">
+                  Visualize seu progresso com gráficos
                 </p>
               </CardContent>
             </Card>

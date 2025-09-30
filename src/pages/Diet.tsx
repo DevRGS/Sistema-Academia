@@ -6,16 +6,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Utensils } from 'lucide-react';
 
-export type MealType = 'cafe_da_manha' | 'lanche_da_manha' | 'almoco' | 'lanche_da_tarde' | 'jantar' | 'ceia';
-
-export const mealTypeMap: Record<MealType, string> = {
-  cafe_da_manha: 'Café da Manhã',
-  lanche_da_manha: 'Lanche da Manhã',
-  almoco: 'Almoço',
-  lanche_da_tarde: 'Lanche da Tarde',
-  jantar: 'Jantar',
-  ceia: 'Ceia',
-};
+export type MealType = 'Café da Manhã' | 'Lanche da Manhã' | 'Almoço' | 'Lanche da Tarde' | 'Jantar' | 'Ceia';
 
 export type DietPlan = {
   id: number;
@@ -35,12 +26,12 @@ export type DietLog = {
 };
 
 const mealOrder: Record<MealType, number> = {
-  cafe_da_manha: 1,
-  lanche_da_manha: 2,
-  almoco: 3,
-  lanche_da_tarde: 4,
-  jantar: 5,
-  ceia: 6,
+  'Café da Manhã': 1,
+  'Lanche da Manhã': 2,
+  'Almoço': 3,
+  'Lanche da Tarde': 4,
+  'Jantar': 5,
+  'Ceia': 6,
 };
 
 const DietPage = () => {

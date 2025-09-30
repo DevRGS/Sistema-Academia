@@ -30,7 +30,7 @@ const emptyStringToNull = z.preprocess(
 );
 
 const mealSchema = z.object({
-  meal: z.enum(['cafe_da_manha', 'lanche_da_manha', 'almoco', 'lanche_da_tarde', 'jantar', 'ceia'], {
+  meal: z.enum(['Café da Manhã', 'Lanche da Manhã', 'Almoço', 'Lanche da Tarde', 'Jantar', 'Ceia'], {
     required_error: "Selecione um tipo de refeição."
   }),
   description: z.string().min(1, 'Descrição é obrigatória.'),
@@ -92,12 +92,12 @@ const AddMealDialog = ({ isOpen, setIsOpen, studentId, onMealAdded }) => {
                       <SelectValue placeholder="Selecione a refeição" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="cafe_da_manha">Café da Manhã</SelectItem>
-                      <SelectItem value="lanche_da_manha">Lanche da Manhã</SelectItem>
-                      <SelectItem value="almoco">Almoço</SelectItem>
-                      <SelectItem value="lanche_da_tarde">Lanche da Tarde</SelectItem>
-                      <SelectItem value="jantar">Jantar</SelectItem>
-                      <SelectItem value="ceia">Ceia</SelectItem>
+                      <SelectItem value="Café da Manhã">Café da Manhã</SelectItem>
+                      <SelectItem value="Lanche da Manhã">Lanche da Manhã</SelectItem>
+                      <SelectItem value="Almoço">Almoço</SelectItem>
+                      <SelectItem value="Lanche da Tarde">Lanche da Tarde</SelectItem>
+                      <SelectItem value="Jantar">Jantar</SelectItem>
+                      <SelectItem value="Ceia">Ceia</SelectItem>
                     </SelectContent>
                   </Select>
                 )}

@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, Clock, Flame, Brain, Beef, Wheat } from "lucide-react";
-import { DietPlan } from "@/pages/Diet";
+import { DietPlan, mealTypeMap } from "@/pages/Diet";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/contexts/SessionContext";
 import { showError, showSuccess } from "@/utils/toast";
@@ -33,7 +33,9 @@ const MealCard = ({ meal, isLogged, onMealLogged }: MealCardProps) => {
 
     const { error } = await supabase.from('diet_logs').insert({
       user_id: user.id,
-      diet_plan_id: meal.id,
+      meal: meal.meal,
+      description: meal.description,
+      scheduled_time: meal.scheduled_time,
     });
 
     if (error) {
@@ -50,7 +52,7 @@ const MealCard = ({ meal, isLogged, onMealLogged }: MealCardProps) => {
       <CardHeader>
         <div className="flex justify-between items-start">
           <div>
-            <CardTitle>{meal.meal}</CardTitle>
+            <CardTitle>{mealTypeMap[meal.meal]}</CardTitle>
             <CardDescription className="flex items-center gap-2 pt-1">
               <Clock className="h-4 w-4" />
               Horário Sugerido: {meal.scheduled_time}

@@ -59,129 +59,43 @@ const ReportsDashboard = () => {
   const [personalRecords, setPersonalRecords] = useState<PersonalRecord[]>([]);
   const [allWorkouts, setAllWorkouts] = useState<Workout[]>([]); // To map exercises to muscle groups/workout names
 
-  const fetchData = async () => {
-    if (!user || !dateRange?.from) return;
-    setLoading(true);
-
-    const fromDate = dateRange.from.toISOString();
-    const toDate = dateRange.to ? addDays(dateRange.to, 1).toISOString() : addDays(dateRange.from, 1).toISOString();
-
-    const [
-      weightResponse,
-      bioimpedanceResponse,
-      nutritionResponse,
-      workoutLogsResponse,
-      personalRecordsResponse,
-      allWorkoutsResponse,
-    ] = await Promise.all([
-      supabase.from('weight_history').select('*').eq('user_id', user.id)
-        .gte('created_at', fromDate)
-        .lt('created_at', toDate)
-        .order('created_at', { ascending: true }),
-      supabase.from('bioimpedance_records').select('*').eq('user_id', user.id)
-        .gte('record_date', fromDate)
-        .lt('record_date', toDate)
-        .order('record_date', { ascending: true }),
-      supabase.from('daily_nutrition_logs').select('*').eq('user_id', user.id)
-        .gte('log_date', fromDate)
-        .lt('log_date', toDate)
-        .order('log_date', { ascending: true }),
-      supabase.from('workout_logs').select('*').eq('user_id', user.id)
-        .gte('log_date', fromDate)
-        .lt('log_date', toDate)
-        .order('log_date', { ascending: true }),
-      supabase.from('personal_records').select('*').eq('user_id', user.id)
-        .gte('achieved_at', fromDate)
-        .lt('achieved_at', toDate)
-        .order('achieved_at', { ascending: true }),
-      supabase.from('workouts').select('*').eq('user_id', user.id), // Fetch all workouts for mapping
-    ]);
-
-    if (weightResponse.error) console.error('Error fetching weight history:', weightResponse.error);
-    else setWeightHistory(weightResponse.data as WeightEntry[]);
-
-    if (bioimpedanceResponse.error) console.error('Error fetching bioimpedance history:', bioimpedanceResponse.error);
-    else setBioimpedanceHistory(bioimpedanceResponse.data as BioimpedanceRecord[]);
-
-    if (nutritionResponse.error) console.error('Error fetching daily nutrition logs:', nutritionResponse.error);
-    else setDailyNutritionLogs(nutritionResponse.data as DailyNutritionLog[]);
-
-    if (workoutLogsResponse.error) console.error('Error fetching workout logs:', workoutLogsResponse.error);
-    else setWorkoutLogs(workoutLogsResponse.data as WorkoutLog[]);
-
-    if (personalRecordsResponse.error) console.error('Error fetching personal records:', personalRecordsResponse.error);
-    else setPersonalRecords(personalRecordsResponse.data as PersonalRecord[]);
-
-    if (allWorkoutsResponse.error) console.error('Error fetching all workouts:', allWorkoutsResponse.error);
-    else setAllWorkouts(allWorkoutsResponse.data as Workout[]);
-
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    if (!sessionLoading && user) {
-      fetchData();
-    }
-  }, [user, sessionLoading, dateRange]); // Re-fetch when dateRange changes
-
-  if (sessionLoading || loading) {
-    return (
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-2">
-        <Skeleton className="h-[350px] w-full" />
-        <Skeleton className="h-[350px] w-full" />
-        <Skeleton className="h-[350px] w-full" />
-        <Skeleton className="h-[350px] w-full" />
-      </div>
-    );
-  }
-
-  if (!user) {
-    return (
-      <Alert>
-        <Activity className="h-4 w-4" />
-        <AlertTitle>Erro de Autenticação</AlertTitle>
-        <AlertDescription>
-          Você precisa estar logado para acessar os relatórios.
-        </AlertDescription>
-      </Alert>
-    );
-  }
-
-  // --- Chart Data Preparation ---
+  // --- Chart Data Preparation (moved to top-level) ---
 
   // Weight Chart Data
-  const weightChartData = weightHistory.map(entry => ({
+  const weightChartData = useMemo(() => weightHistory.map(entry => ({
     date: format(parseISO(entry.created_at), 'dd/MM', { locale: ptBR }),
     weight: entry.weight_kg,
-  }));
+  })), [weightHistory]);
 
   // Bioimpedance Chart Data (simplified for dashboard)
-  const bioimpedanceChartData = bioimpedanceHistory.map(entry => ({
+  const bioimpedanceChartData = useMemo(() => bioimpedanceHistory.map(entry => ({
     date: format(parseISO(entry.record_date), 'dd/MM', { locale: ptBR }),
     body_fat_percentage: entry.body_fat_percentage,
     muscle_mass_kg: entry.muscle_mass_kg,
     bmi: entry.bmi,
-  }));
+  })), [bioimpedanceHistory]);
 
   // Daily Nutrition Chart Data
-  const nutritionChartData = dailyNutritionLogs.map(log => ({
+  const nutritionChartData = useMemo(() => dailyNutritionLogs.map(log => ({
     date: format(parseISO(log.log_date), 'dd/MM', { locale: ptBR }),
     calories: log.total_calories,
     protein: log.total_protein_g,
     carbs: log.total_carbs_g,
     fat: log.total_fat_g,
-  }));
+  })), [dailyNutritionLogs]);
 
   // Workout Frequency Chart Data (distinct log dates)
-  const workoutFrequencyMap = workoutLogs.reduce((acc, log) => {
-    const date = format(parseISO(log.log_date), 'dd/MM/yyyy', { locale: ptBR });
-    acc[date] = (acc[date] || 0) + 1; // Count logged exercises per day
-    return acc;
-  }, {} as Record<string, number>);
+  const workoutChartData = useMemo(() => {
+    const workoutFrequencyMap = workoutLogs.reduce((acc, log) => {
+      const date = format(parseISO(log.log_date), 'dd/MM/yyyy', { locale: ptBR });
+      acc[date] = (acc[date] || 0) + 1; // Count logged exercises per day
+      return acc;
+    }, {} as Record<string, number>);
 
-  const workoutChartData = Object.entries(workoutFrequencyMap)
-    .map(([date, count]) => ({ date, exercisesLogged: count }))
-    .sort((a, b) => parseISO(a.date, { locale: ptBR }).getTime() - parseISO(b.date, { locale: ptBR }).getTime());
+    return Object.entries(workoutFrequencyMap)
+      .map(([date, count]) => ({ date, exercisesLogged: count }))
+      .sort((a, b) => parseISO(a.date, { locale: ptBR }).getTime() - parseISO(b.date, { locale: ptBR }).getTime());
+  }, [workoutLogs]);
 
   // Strength Evolution (Personal Records)
   const prChartData = useMemo(() => {
@@ -251,6 +165,94 @@ const ReportsDashboard = () => {
     return { muscleGroupDistribution: muscleGroupPieData, workoutNameDistribution: workoutNamePieData, mostPerformedExercise };
   }, [workoutLogs, allWorkouts]);
 
+
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!user || !dateRange?.from) return;
+      setLoading(true);
+
+      const fromDate = dateRange.from.toISOString();
+      const toDate = dateRange.to ? addDays(dateRange.to, 1).toISOString() : addDays(dateRange.from, 1).toISOString();
+
+      const [
+        weightResponse,
+        bioimpedanceResponse,
+        nutritionResponse,
+        workoutLogsResponse,
+        personalRecordsResponse,
+        allWorkoutsResponse,
+      ] = await Promise.all([
+        supabase.from('weight_history').select('*').eq('user_id', user.id)
+          .gte('created_at', fromDate)
+          .lt('created_at', toDate)
+          .order('created_at', { ascending: true }),
+        supabase.from('bioimpedance_records').select('*').eq('user_id', user.id)
+          .gte('record_date', fromDate)
+          .lt('record_date', toDate)
+          .order('record_date', { ascending: true }),
+        supabase.from('daily_nutrition_logs').select('*').eq('user_id', user.id)
+          .gte('log_date', fromDate)
+          .lt('log_date', toDate)
+          .order('log_date', { ascending: true }),
+        supabase.from('workout_logs').select('*').eq('user_id', user.id)
+          .gte('log_date', fromDate)
+          .lt('log_date', toDate)
+          .order('log_date', { ascending: true }),
+        supabase.from('personal_records').select('*').eq('user_id', user.id)
+          .gte('achieved_at', fromDate)
+          .lt('achieved_at', toDate)
+          .order('achieved_at', { ascending: true }),
+        supabase.from('workouts').select('*').eq('user_id', user.id), // Fetch all workouts for mapping
+      ]);
+
+      if (weightResponse.error) console.error('Error fetching weight history:', weightResponse.error);
+      else setWeightHistory(weightResponse.data as WeightEntry[]);
+
+      if (bioimpedanceResponse.error) console.error('Error fetching bioimpedance history:', bioimpedanceResponse.error);
+      else setBioimpedanceHistory(bioimpedanceResponse.data as BioimpedanceRecord[]);
+
+      if (nutritionResponse.error) console.error('Error fetching daily nutrition logs:', nutritionResponse.error);
+      else setDailyNutritionLogs(nutritionResponse.data as DailyNutritionLog[]);
+
+      if (workoutLogsResponse.error) console.error('Error fetching workout logs:', workoutLogsResponse.error);
+      else setWorkoutLogs(workoutLogsResponse.data as WorkoutLog[]);
+
+      if (personalRecordsResponse.error) console.error('Error fetching personal records:', personalRecordsResponse.error);
+      else setPersonalRecords(personalRecordsResponse.data as PersonalRecord[]);
+
+      if (allWorkoutsResponse.error) console.error('Error fetching all workouts:', allWorkoutsResponse.error);
+      else setAllWorkouts(allWorkoutsResponse.data as Workout[]);
+
+      setLoading(false);
+    };
+
+    if (!sessionLoading && user) {
+      fetchData();
+    }
+  }, [user, sessionLoading, dateRange]); // Re-fetch when dateRange changes
+
+  if (sessionLoading || loading) {
+    return (
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-2">
+        <Skeleton className="h-[350px] w-full" />
+        <Skeleton className="h-[350px] w-full" />
+        <Skeleton className="h-[350px] w-full" />
+        <Skeleton className="h-[350px] w-full" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <Alert>
+        <Activity className="h-4 w-4" />
+        <AlertTitle>Erro de Autenticação</AlertTitle>
+        <AlertDescription>
+          Você precisa estar logado para acessar os relatórios.
+        </AlertDescription>
+      </Alert>
+    );
+  }
 
   return (
     <div className="space-y-6">

@@ -40,22 +40,41 @@ const Dashboard = () => {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {!isAdmin && <BmrCard />}
         
-        <NavLink to="/diet" className="no-underline">
-          <Card className="hover:bg-muted/80 transition-colors h-full">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
-                Minha Dieta
-              </CardTitle>
-              <Utensils className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">Ver Dieta</div>
-              <p className="text-xs text-muted-foreground">
-                Acompanhe seu plano alimentar
-              </p>
-            </CardContent>
-          </Card>
-        </NavLink>
+        {isAdmin ? (
+          <NavLink to="/students" className="no-underline">
+            <Card className="hover:bg-muted/80 transition-colors h-full">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  Gerenciar Dietas
+                </CardTitle>
+                <Utensils className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">Criar Dietas</div>
+                <p className="text-xs text-muted-foreground">
+                  Atribua planos alimentares aos alunos
+                </p>
+              </CardContent>
+            </Card>
+          </NavLink>
+        ) : (
+          <NavLink to="/diet" className="no-underline">
+            <Card className="hover:bg-muted/80 transition-colors h-full">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  Minha Dieta
+                </CardTitle>
+                <Utensils className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">Ver Dieta</div>
+                <p className="text-xs text-muted-foreground">
+                  Acompanhe seu plano alimentar
+                </p>
+              </CardContent>
+            </Card>
+          </NavLink>
+        )}
 
         <NavLink to="/workouts" className="no-underline">
           <Card className="hover:bg-muted/80 transition-colors h-full">

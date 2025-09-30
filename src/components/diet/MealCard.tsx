@@ -16,7 +16,6 @@ import { Button } from "@/components/ui/button";
 import { CheckCircle, Clock, Flame, Brain, Beef, Wheat } from "lucide-react";
 import { DietPlan } from "@/pages/Diet";
 import { supabase } from "@/integrations/supabase/client";
-import { useSession } from "@/contexts/SessionContext";
 import { showError, showSuccess } from "@/utils/toast";
 
 type MealCardProps = {
@@ -26,14 +25,9 @@ type MealCardProps = {
 };
 
 const MealCard = ({ meal, isLogged, onMealLogged }: MealCardProps) => {
-  const { user } = useSession();
-
   const handleLogMeal = async () => {
-    if (!user) return;
-
-    const { error } = await supabase.from('diet_logs').insert({
-      user_id: user.id,
-      diet_plan_id: meal.id,
+    const { error } = await supabase.rpc('log_meal_and_update_summary', {
+      plan_id: meal.id,
     });
 
     if (error) {

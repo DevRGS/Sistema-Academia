@@ -22,8 +22,8 @@ const Header = () => {
     { to: "/dashboard", icon: <Home className="h-5 w-5" />, label: "Dashboard", adminOnly: false },
     { to: "/diet", icon: <Utensils className="h-5 w-5" />, label: "Dieta", adminOnly: false },
     { to: "/workouts", icon: <Dumbbell className="h-5 w-5" />, label: "Treinos", adminOnly: false },
-    { to: "/weight-tracking", icon: <Scale className="h-5 w-5" />, label: "Peso", adminOnly: false }, // New nav item
-    { to: "/bioimpedance", icon: <LineChart className="h-5 w-5" />, label: "Bioimpedância", adminOnly: false },
+    { to: "/weight-tracking", icon: <Scale className="h-5 w-5" />, label: "Peso", adminOnly: false },
+    { to: "/bioimpedance", icon: <LineChart className="h-5 w-5" />, label: "Bioimpedância", adminOnly: false }, // Updated nav item
     { to: "/students", icon: <Users className="h-5 w-5" />, label: "Alunos", adminOnly: true },
   ];
 

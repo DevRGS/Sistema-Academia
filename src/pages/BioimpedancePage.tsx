@@ -20,6 +20,28 @@ export type BioimpedanceRecord = {
   water_percentage: number | null;
   notes: string | null;
   created_at: string;
+  // New fields
+  waist_cm: number | null;
+  hip_cm: number | null;
+  glutes_cm: number | null;
+  thigh_cm: number | null;
+  calf_cm: number | null;
+  biceps_cm: number | null;
+  forearm_cm: number | null;
+  chest_cm: number | null;
+  shoulders_cm: number | null;
+  bmi: number | null;
+  fat_mass_kg: number | null;
+  lean_mass_kg: number | null;
+  segmental_muscle_mass_arms_kg: number | null;
+  segmental_muscle_mass_legs_kg: number | null;
+  segmental_muscle_mass_trunk_kg: number | null;
+  total_body_water_percentage: number | null;
+  intracellular_water_percentage: number | null;
+  extracellular_water_percentage: number | null;
+  basal_metabolic_rate_kcal: number | null;
+  visceral_fat_level: number | null;
+  metabolic_age: number | null;
 };
 
 const BioimpedancePage = () => {

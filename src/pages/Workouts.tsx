@@ -68,7 +68,7 @@ const WorkoutsPage = () => {
       {loading ? (
         <p>Carregando treinos...</p>
       ) : (
-        <WorkoutList workouts={workouts} />
+        <WorkoutList workouts={workouts} onWorkoutUpdated={fetchWorkouts} />
       )}
     </div>
   );

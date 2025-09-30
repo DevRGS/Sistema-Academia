@@ -11,6 +11,7 @@ import Login from "./pages/Login";
 import ProtectedRoute from "./components/ProtectedRoute";
 import WorkoutsPage from "./pages/Workouts";
 import StudentsPage from "./pages/Students";
+import WorkoutSessionPage from "./pages/WorkoutSession";
 
 const queryClient = new QueryClient();
 
@@ -27,6 +28,7 @@ const App = () => (
           <Route path="/dashboard" element={<Layout><Dashboard /></Layout>} />
           <Route path="/diet" element={<Layout><div>Diet Page</div></Layout>} />
           <Route path="/workouts" element={<Layout><WorkoutsPage /></Layout>} />
+          <Route path="/workout-session/:workoutId" element={<Layout><WorkoutSessionPage /></Layout>} />
           <Route path="/bioimpedance" element={<Layout><div>Bioimpedance Page</div></Layout>} />
           <Route path="/students" element={<Layout><StudentsPage /></Layout>} />
         </Route>

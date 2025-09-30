@@ -14,6 +14,9 @@ import {
 } from "@/components/ui/table";
 import { Workout } from '@/pages/Workouts';
 import { Badge } from "../ui/badge";
+import { Button } from "../ui/button";
+import { NavLink } from "react-router-dom";
+import { PlayCircle } from "lucide-react";
 
 const WorkoutList = ({ workouts }: { workouts: Workout[] }) => {
   if (!workouts || workouts.length === 0) {
@@ -56,6 +59,14 @@ const WorkoutList = ({ workouts }: { workouts: Workout[] }) => {
                 ))}
               </TableBody>
             </Table>
+            <div className="mt-4 flex justify-end">
+              <Button asChild>
+                <NavLink to={`/workout-session/${workout.id}`}>
+                  <PlayCircle className="mr-2 h-4 w-4" />
+                  Iniciar Treino
+                </NavLink>
+              </Button>
+            </div>
           </AccordionContent>
         </AccordionItem>
       ))}

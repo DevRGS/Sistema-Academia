@@ -10,6 +10,7 @@ import Layout from "./components/Layout";
 import Login from "./pages/Login";
 import ProtectedRoute from "./components/ProtectedRoute";
 import WorkoutsPage from "./pages/Workouts";
+import StudentsPage from "./pages/Students";
 
 const queryClient = new QueryClient();
 
@@ -27,7 +28,7 @@ const App = () => (
           <Route path="/diet" element={<Layout><div>Diet Page</div></Layout>} />
           <Route path="/workouts" element={<Layout><WorkoutsPage /></Layout>} />
           <Route path="/bioimpedance" element={<Layout><div>Bioimpedance Page</div></Layout>} />
-          <Route path="/students" element={<Layout><div>Students Page</div></Layout>} />
+          <Route path="/students" element={<Layout><StudentsPage /></Layout>} />
         </Route>
 
         <Route path="*" element={<NotFound />} />

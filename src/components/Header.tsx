@@ -18,12 +18,14 @@ const Header = () => {
   const { profile, signOut } = useSession();
 
   const navItems = [
-    { to: "/dashboard", icon: <Home className="h-5 w-5" />, label: "Dashboard" },
-    { to: "/diet", icon: <Utensils className="h-5 w-5" />, label: "Dieta" },
-    { to: "/workouts", icon: <Dumbbell className="h-5 w-5" />, label: "Treinos" },
-    { to: "/bioimpedance", icon: <LineChart className="h-5 w-5" />, label: "Bioimpedância" },
-    { to: "/students", icon: <Users className="h-5 w-5" />, label: "Alunos" },
+    { to: "/dashboard", icon: <Home className="h-5 w-5" />, label: "Dashboard", adminOnly: false },
+    { to: "/diet", icon: <Utensils className="h-5 w-5" />, label: "Dieta", adminOnly: false },
+    { to: "/workouts", icon: <Dumbbell className="h-5 w-5" />, label: "Treinos", adminOnly: false },
+    { to: "/bioimpedance", icon: <LineChart className="h-5 w-5" />, label: "Bioimpedância", adminOnly: false },
+    { to: "/students", icon: <Users className="h-5 w-5" />, label: "Alunos", adminOnly: true },
   ];
+
+  const visibleNavItems = navItems.filter(item => !item.adminOnly || profile?.role === 'admin');
 
   const getInitials = (firstName = '', lastName = '') => {
     const firstInitial = firstName ? firstName.charAt(0) : '';
@@ -46,7 +48,7 @@ const Header = () => {
               <Package className="h-6 w-6" />
               <span className="sr-only">FitTrack</span>
             </NavLink>
-            {navItems.map((item) => (
+            {visibleNavItems.map((item) => (
               <NavLink
                 key={item.to}
                 to={item.to}

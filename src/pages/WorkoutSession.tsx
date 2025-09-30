@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useForm, useFieldArray } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { supabase } from '@/integrations/supabase/client';
 import { Workout } from './Workouts';
 import { Button } from '@/components/ui/button';
@@ -32,17 +32,13 @@ const WorkoutSessionPage = () => {
   const [loading, setLoading] = useState(true);
   const [currentExerciseIndex, setCurrentExerciseIndex] = useState(0);
   const [startTime, setStartTime] = useState<Date | null>(null);
+  const [elapsedTime, setElapsedTime] = useState(0);
   const [isFinished, setIsFinished] = useState(false);
 
-  const { control, handleSubmit, getValues } = useForm<FormData>({
+  const { control, getValues } = useForm<FormData>({
     defaultValues: {
       exercises: [],
     },
-  });
-
-  const { fields } = useFieldArray({
-    control,
-    name: `exercises.${currentExerciseIndex}.sets`,
   });
 
   useEffect(() => {
@@ -66,6 +62,18 @@ const WorkoutSessionPage = () => {
     };
     fetchWorkout();
   }, [workoutId, navigate]);
+
+  useEffect(() => {
+    if (!startTime || isFinished) return;
+
+    const interval = setInterval(() => {
+      const now = new Date();
+      const elapsed = Math.floor((now.getTime() - startTime.getTime()) / 1000);
+      setElapsedTime(elapsed);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [startTime, isFinished]);
 
   const handleNextExercise = () => {
     if (workout && currentExerciseIndex < workout.exercises.length - 1) {
@@ -112,7 +120,7 @@ const WorkoutSessionPage = () => {
         </CardHeader>
         <CardContent>
           <p className="text-lg">Tempo total:</p>
-          <Timer startTime={startTime} isFinished={true} />
+          <Timer elapsedTime={elapsedTime} />
           <Button onClick={() => navigate('/dashboard')} className="mt-6">
             Voltar para o Painel
           </Button>
@@ -132,11 +140,11 @@ const WorkoutSessionPage = () => {
             <CardTitle>{workout.name}</CardTitle>
             <CardDescription>Exercício {currentExerciseIndex + 1} de {workout.exercises.length}</CardDescription>
           </div>
-          <Timer startTime={startTime} isFinished={isFinished} />
+          <Timer elapsedTime={elapsedTime} />
         </div>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit(handleFinishWorkout)}>
+        <div>
           <h3 className="text-xl font-semibold mb-4">{currentExercise.name}</h3>
           <div className="space-y-4">
             {Array.from({ length: totalSets }).map((_, setIndex) => (
@@ -169,13 +177,13 @@ const WorkoutSessionPage = () => {
                 Próximo Exercício
               </Button>
             ) : (
-              <Button type="submit" className="bg-green-600 hover:bg-green-700">
+              <Button type="button" onClick={handleFinishWorkout} className="bg-green-600 hover:bg-green-700">
                 <CheckCircle className="mr-2 h-4 w-4" />
                 Finalizar Treino
               </Button>
             )}
           </div>
-        </form>
+        </div>
       </CardContent>
     </Card>
   );

@@ -1,20 +1,6 @@
-import { useState, useEffect } from 'react';
+import React from 'react';
 
-const Timer = ({ startTime, isFinished }: { startTime: Date | null, isFinished: boolean }) => {
-  const [elapsedTime, setElapsedTime] = useState(0);
-
-  useEffect(() => {
-    if (!startTime || isFinished) return;
-
-    const interval = setInterval(() => {
-      const now = new Date();
-      const elapsed = Math.floor((now.getTime() - startTime.getTime()) / 1000);
-      setElapsedTime(elapsed);
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [startTime, isFinished]);
-
+const Timer = ({ elapsedTime }: { elapsedTime: number }) => {
   const formatTime = (totalSeconds: number) => {
     const minutes = Math.floor(totalSeconds / 60);
     const seconds = totalSeconds % 60;

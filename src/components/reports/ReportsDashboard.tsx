@@ -4,15 +4,12 @@ import { useSession } from '@/contexts/SessionContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { LineChart, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { format, parseISO, startOfMonth, endOfMonth, subMonths, addDays } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
-import { WeightEntry } from '@/pages/WeightTrackingPage';
-import { BioimpedanceRecord } from '@/pages/BioimpedancePage';
-import { Workout, Exercise } from '@/pages/Workouts'; // Import Workout and Exercise types
 import { DateRange } from 'react-day-picker';
 import { DatePickerWithRange } from '@/components/ui/date-range-picker';
 import { Activity } from 'lucide-react';
+// Recharts imports
+import { Line } from 'recharts'; // Isolated Line import
+import { LineChart, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
 // Define types for data used in reports
 type DailyNutritionLog = {
@@ -383,7 +380,7 @@ const ReportsDashboard = () => {
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" type="category" allowDuplicatedCategory={true} /> {/* Changed to true */}
+                    <XAxis dataKey="date" type="category" allowDuplicatedCategory={true} />
                     <YAxis label={{ value: 'Peso (kg)', angle: -90, position: 'insideLeft' }} />
                     <Tooltip />
                     <Legend />

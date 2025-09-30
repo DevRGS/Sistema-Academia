@@ -33,9 +33,7 @@ const MealCard = ({ meal, isLogged, onMealLogged }: MealCardProps) => {
 
     const { error } = await supabase.from('diet_logs').insert({
       user_id: user.id,
-      meal: meal.meal,
-      description: meal.description,
-      scheduled_time: meal.scheduled_time,
+      diet_plan_id: meal.id,
     });
 
     if (error) {

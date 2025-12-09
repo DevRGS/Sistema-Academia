@@ -144,7 +144,7 @@ const Header = () => {
           <nav className="grid gap-2 text-lg font-medium">
             <NavLink to="/" className="flex items-center gap-2 text-lg font-semibold mb-4">
               <Package className="h-6 w-6" />
-              <span className="sr-only">FitTrack</span>
+              <span className="sr-only">Black Academy</span>
             </NavLink>
             {visibleNavItems.map((item) => (
               <NavLink

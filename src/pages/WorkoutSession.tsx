@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, NavLink } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
-import { supabase } from '@/integrations/supabase/client';
+import { useGoogleSheetsDB } from '@/hooks/useGoogleSheetsDB';
 import { Workout } from './Workouts';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import Timer from '@/components/workouts/Timer';
 import { showError, showSuccess } from '@/utils/toast';
-import { CheckCircle, PartyPopper } from 'lucide-react';
+import { CheckCircle, PartyPopper, Home } from 'lucide-react';
 import { useSession } from '@/contexts/SessionContext';
 
 type PerformanceData = {
@@ -28,6 +28,7 @@ const WorkoutSessionPage = () => {
   const { workoutId } = useParams();
   const navigate = useNavigate();
   const { user } = useSession();
+  const { select, insert, initialized } = useGoogleSheetsDB();
   const [workout, setWorkout] = useState<Workout | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentExerciseIndex, setCurrentExerciseIndex] = useState(0);
@@ -43,25 +44,36 @@ const WorkoutSessionPage = () => {
 
   useEffect(() => {
     const fetchWorkout = async () => {
-      if (!workoutId) return;
+      if (!workoutId || !initialized) return;
       setLoading(true);
-      const { data, error } = await supabase
-        .from('workouts')
-        .select('*')
-        .eq('id', workoutId)
-        .single();
-
-      if (error) {
+      try {
+        const workouts = await select<Workout>('workouts', { eq: { column: 'id', value: workoutId } });
+        if (workouts.length > 0) {
+          // Parse exercises from JSON string to array
+          const workout = workouts[0];
+          if (workout.exercises && typeof workout.exercises === 'string') {
+            try {
+              workout.exercises = JSON.parse(workout.exercises);
+            } catch (e) {
+              console.error('Error parsing exercises:', e);
+              workout.exercises = [];
+            }
+          }
+          setWorkout(workout);
+          setStartTime(new Date());
+        } else {
+          showError('Treino não encontrado.');
+          navigate('/workouts');
+        }
+      } catch (error) {
         showError('Erro ao carregar o treino.');
         navigate('/workouts');
-      } else {
-        setWorkout(data as Workout);
-        setStartTime(new Date());
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
     fetchWorkout();
-  }, [workoutId, navigate]);
+  }, [workoutId, navigate, initialized]);
 
   useEffect(() => {
     if (!startTime || isFinished) return;
@@ -82,23 +94,24 @@ const WorkoutSessionPage = () => {
   };
 
   const handleFinishWorkout = async () => {
-    if (!workout || !user) return;
+    if (!workout || !user || !initialized) return;
 
-    const performanceData = getValues('exercises');
-    const logsToInsert = workout.exercises.map((exercise, index) => ({
-      user_id: user.id,
-      exercise_name: exercise.name,
-      performance: performanceData[index]?.sets || [],
-    }));
+    try {
+      const performanceData = getValues('exercises');
+      const today = new Date().toISOString().split('T')[0];
+      const logsToInsert = workout.exercises.map((exercise, index) => ({
+        user_id: user.id,
+        exercise_name: exercise.name,
+        log_date: today,
+        performance: performanceData[index]?.sets || [],
+      }));
 
-    const { error } = await supabase.from('workout_logs').insert(logsToInsert);
-
-    if (error) {
-      showError('Erro ao salvar o registro do treino.');
-      console.error(error);
-    } else {
+      await insert('workout_logs', logsToInsert);
       showSuccess('Treino concluído e salvo com sucesso!');
       setIsFinished(true);
+    } catch (error) {
+      showError('Erro ao salvar o registro do treino.');
+      console.error(error);
     }
   };
 
@@ -133,7 +146,15 @@ const WorkoutSessionPage = () => {
   const totalSets = parseInt(currentExercise.sets, 10) || 0;
 
   return (
-    <Card className="w-full max-w-2xl mx-auto">
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <Button variant="outline" asChild>
+          <NavLink to="/dashboard">
+            <Home className="mr-2 h-4 w-4" /> Dashboard
+          </NavLink>
+        </Button>
+      </div>
+      <Card className="w-full max-w-2xl mx-auto">
       <CardHeader>
         <div className="flex justify-between items-center">
           <div>
@@ -186,6 +207,7 @@ const WorkoutSessionPage = () => {
         </div>
       </CardContent>
     </Card>
+    </div>
   );
 };
 

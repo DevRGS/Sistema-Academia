@@ -1,11 +1,14 @@
 import { useState, useEffect, useMemo } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { useSession } from '@/contexts/SessionContext';
+import { useGoogleSheetsDB } from '@/hooks/useGoogleSheetsDB';
+import { NavLink } from 'react-router-dom';
 import MealCard from '@/components/diet/MealCard';
 import DietTotalsCard from '@/components/diet/DietTotalsCard';
+import AddMealDialog from '@/components/admin/AddMealDialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Utensils } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Utensils, PlusCircle, Home } from 'lucide-react';
 
 export type MealType = 'Café da Manhã' | 'Lanche da Manhã' | 'Almoço' | 'Lanche da Tarde' | 'Jantar' | 'Ceia';
 
@@ -36,40 +39,54 @@ const mealOrder: Record<MealType, number> = {
 };
 
 const DietPage = () => {
-  const { user } = useSession();
+  const { user, profile } = useSession();
+  const { select, initialized, loading: dbLoading, spreadsheetId, originalSpreadsheetId } = useGoogleSheetsDB();
   const [dietPlan, setDietPlan] = useState<DietPlan[]>([]);
   const [dietLogs, setDietLogs] = useState<DietLog[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isAddMealDialogOpen, setIsAddMealDialogOpen] = useState(false);
+  const isStudent = profile?.role === 'student';
+  const isPersonal = profile?.role === 'personal';
 
   const fetchData = async () => {
-    if (!user) return;
+    if (!user || !initialized) return;
     setLoading(true);
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
 
-    const [planResponse, logsResponse] = await Promise.all([
-      supabase.from('diet_plans').select('*').eq('user_id', user.id),
-      supabase.from('diet_logs').select('*').eq('user_id', user.id)
-        .gte('logged_at', today.toISOString())
-        .lt('logged_at', tomorrow.toISOString()),
-    ]);
+      // If viewing a shared spreadsheet (not own), use profile.id (which will be the student's ID)
+      // Otherwise, use user.id (the full Google ID) to avoid truncation issues
+      const isViewingSharedSpreadsheet = spreadsheetId && originalSpreadsheetId && spreadsheetId !== originalSpreadsheetId;
+      const userId = (isViewingSharedSpreadsheet && profile?.id) ? String(profile.id) : String(user.id);
+      
+      const [plans, logs] = await Promise.all([
+        select<DietPlan>('diet_plans', { eq: { column: 'user_id', value: userId } }),
+        select<DietLog>('diet_logs', {
+          eq: { column: 'user_id', value: userId },
+          gte: { column: 'logged_at', value: today.toISOString() },
+          lt: { column: 'logged_at', value: tomorrow.toISOString() },
+        }),
+      ]);
 
-    if (planResponse.error || logsResponse.error) {
-      console.error('Error fetching diet data:', planResponse.error || logsResponse.error);
-    } else {
-      const sortedPlan = (planResponse.data || []).sort((a, b) => mealOrder[a.meal] - mealOrder[b.meal]);
-      setDietPlan(sortedPlan as DietPlan[]);
-      setDietLogs((logsResponse.data || []) as DietLog[]);
+      const sortedPlan = plans.sort((a, b) => mealOrder[a.meal] - mealOrder[b.meal]);
+      setDietPlan(sortedPlan);
+      setDietLogs(logs);
+    } catch (error) {
+      console.error('Error fetching diet data:', error);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
-    fetchData();
-  }, [user]);
+    if (initialized && !dbLoading) {
+      fetchData();
+    }
+  }, [user, profile, initialized, dbLoading, spreadsheetId]);
 
   const handleMealLogged = () => {
     fetchData();
@@ -109,19 +126,59 @@ const DietPage = () => {
 
   if (dietPlan.length === 0) {
     return (
-       <Alert>
-        <Utensils className="h-4 w-4" />
-        <AlertTitle>Nenhum plano de dieta encontrado!</AlertTitle>
-        <AlertDescription>
-          Seu plano de dieta ainda não foi cadastrado. Entre em contato com seu instrutor.
-        </AlertDescription>
-      </Alert>
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <h1 className="text-3xl font-bold">{isPersonal ? 'Dieta do Aluno' : 'Minha Dieta'}</h1>
+          <div className="flex gap-2">
+            <Button variant="outline" asChild>
+              <NavLink to="/dashboard">
+                <Home className="mr-2 h-4 w-4" /> Dashboard
+              </NavLink>
+            </Button>
+            {(isStudent || isPersonal) && user && (
+              <Button onClick={() => setIsAddMealDialogOpen(true)}>
+                <PlusCircle className="mr-2 h-4 w-4" /> Adicionar Refeição
+              </Button>
+            )}
+          </div>
+        </div>
+        <Alert>
+          <Utensils className="h-4 w-4" />
+          <AlertTitle>Nenhum plano de dieta encontrado!</AlertTitle>
+          <AlertDescription>
+            Você ainda não tem um plano de dieta cadastrado. Você pode criar seu próprio plano ou entrar em contato com seu instrutor.
+          </AlertDescription>
+        </Alert>
+        
+        {(isStudent || isPersonal) && user && (
+          <AddMealDialog
+            isOpen={isAddMealDialogOpen}
+            setIsOpen={setIsAddMealDialogOpen}
+            studentId={(isPersonal && profile?.id) ? String(profile.id) : String(user.id)}
+            onMealAdded={fetchData}
+          />
+        )}
+      </div>
     )
   }
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Minha Dieta</h1>
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-bold">{isPersonal ? 'Dieta do Aluno' : 'Minha Dieta'}</h1>
+        <div className="flex gap-2">
+          <Button variant="outline" asChild>
+            <NavLink to="/dashboard">
+              <Home className="mr-2 h-4 w-4" /> Dashboard
+            </NavLink>
+          </Button>
+          {(isStudent || isPersonal) && user && (
+            <Button onClick={() => setIsAddMealDialogOpen(true)}>
+              <PlusCircle className="mr-2 h-4 w-4" /> Adicionar Refeição
+            </Button>
+          )}
+        </div>
+      </div>
       <div className="space-y-4 pb-32">
         {dietPlan.map((meal) => {
           const isLogged = dietLogs.some(log => log.diet_plan_id === meal.id);
@@ -129,6 +186,15 @@ const DietPage = () => {
         })}
       </div>
       <DietTotalsCard consumed={consumedTotals} target={targetTotals} />
+      
+      {(isStudent || isPersonal) && user && (
+        <AddMealDialog
+          isOpen={isAddMealDialogOpen}
+          setIsOpen={setIsAddMealDialogOpen}
+          studentId={(isPersonal && profile?.id) ? String(profile.id) : String(user.id)}
+          onMealAdded={fetchData}
+        />
+      )}
     </div>
   );
 };

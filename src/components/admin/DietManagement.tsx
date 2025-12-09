@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { useGoogleSheetsDB } from '@/hooks/useGoogleSheetsDB';
 import {
   Select,
   SelectContent,
@@ -21,6 +21,7 @@ type StudentProfile = {
 };
 
 const DietManagement = () => {
+  const { select, delete: deleteRow, initialized, loading: dbLoading } = useGoogleSheetsDB();
   const [students, setStudents] = useState<StudentProfile[]>([]);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [dietPlan, setDietPlan] = useState<DietPlan[]>([]);
@@ -28,46 +29,58 @@ const DietManagement = () => {
 
   useEffect(() => {
     const fetchStudents = async () => {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, first_name, last_name')
-        .eq('role', 'student');
-      if (data) setStudents(data);
+      if (!initialized) return;
+      try {
+        const data = await select<StudentProfile>('profiles', { eq: { column: 'role', value: 'student' } });
+        // Remove duplicates by ID - keep only the first occurrence of each unique ID
+        const uniqueStudents = data.filter((student, index, self) => 
+          index === self.findIndex((s) => String(s.id) === String(student.id))
+        );
+        setStudents(uniqueStudents);
+      } catch (error) {
+        console.error(error);
+      }
     };
-    fetchStudents();
-  }, []);
+    if (initialized && !dbLoading) {
+      fetchStudents();
+    }
+  }, [initialized, dbLoading]);
 
   useEffect(() => {
     const fetchDietPlan = async () => {
-      if (!selectedStudentId) {
+      if (!selectedStudentId || !initialized) {
         setDietPlan([]);
         return;
       }
-      const { data, error } = await supabase
-        .from('diet_plans')
-        .select('*')
-        .eq('user_id', selectedStudentId);
-      if (data) setDietPlan(data as DietPlan[]);
+      try {
+        const data = await select<DietPlan>('diet_plans', { eq: { column: 'user_id', value: selectedStudentId } });
+        setDietPlan(data);
+      } catch (error) {
+        console.error(error);
+      }
     };
     fetchDietPlan();
-  }, [selectedStudentId]);
+  }, [selectedStudentId, initialized]);
 
   const handleMealAdded = async () => {
-     if (!selectedStudentId) return;
-      const { data } = await supabase
-        .from('diet_plans')
-        .select('*')
-        .eq('user_id', selectedStudentId);
-      if (data) setDietPlan(data as DietPlan[]);
+     if (!selectedStudentId || !initialized) return;
+     try {
+       const data = await select<DietPlan>('diet_plans', { eq: { column: 'user_id', value: selectedStudentId } });
+       setDietPlan(data);
+     } catch (error) {
+       console.error(error);
+     }
   }
 
   const deleteMeal = async (mealId: number) => {
-    const { error } = await supabase.from('diet_plans').delete().eq('id', mealId);
-    if (error) {
-      showError("Erro ao deletar refeição.");
-    } else {
+    if (!initialized) return;
+    try {
+      await deleteRow('diet_plans', { column: 'id', value: mealId });
       showSuccess("Refeição deletada.");
       handleMealAdded();
+    } catch (error) {
+      showError("Erro ao deletar refeição.");
+      console.error(error);
     }
   }
 

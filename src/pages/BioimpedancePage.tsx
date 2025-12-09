@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { useSession } from '@/contexts/SessionContext';
+import { useGoogleSheetsDB } from '@/hooks/useGoogleSheetsDB';
+import { NavLink } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { PlusCircle } from 'lucide-react';
+import { PlusCircle, Home } from 'lucide-react';
 import AddBioimpedanceDialog from '@/components/bioimpedance/AddBioimpedanceDialog';
 import BioimpedanceChart from '@/components/bioimpedance/BioimpedanceChart';
 import BioimpedanceHistoryList from '@/components/bioimpedance/BioimpedanceHistoryList';
@@ -45,33 +46,38 @@ export type BioimpedanceRecord = {
 };
 
 const BioimpedancePage = () => {
-  const { user, loading: sessionLoading } = useSession();
+  const { user, profile, loading: sessionLoading } = useSession();
+  const { select, initialized, loading: dbLoading, spreadsheetId, originalSpreadsheetId } = useGoogleSheetsDB();
   const [bioimpedanceHistory, setBioimpedanceHistory] = useState<BioimpedanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAddRecordDialogOpen, setIsAddRecordDialogOpen] = useState(false);
 
   const fetchBioimpedanceHistory = async () => {
-    if (!user) return;
+    if (!user || !initialized) return;
     setLoading(true);
-    const { data, error } = await supabase
-      .from('bioimpedance_records')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('record_date', { ascending: false }); // Order by most recent date first
-
-    if (error) {
+    try {
+      // If viewing a shared spreadsheet (not own), use profile.id (which will be the student's ID)
+      // Otherwise, use user.id (the full Google ID) to avoid truncation issues
+      const isViewingSharedSpreadsheet = spreadsheetId && originalSpreadsheetId && spreadsheetId !== originalSpreadsheetId;
+      const userId = (isViewingSharedSpreadsheet && profile?.id) ? String(profile.id) : String(user.id);
+      
+      const data = await select<BioimpedanceRecord>('bioimpedance_records', {
+        eq: { column: 'user_id', value: userId },
+        order: { column: 'record_date', ascending: false },
+      });
+      setBioimpedanceHistory(data);
+    } catch (error) {
       console.error('Error fetching bioimpedance history:', error);
-    } else if (data) {
-      setBioimpedanceHistory(data as BioimpedanceRecord[]);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
-    if (!sessionLoading && user) {
+    if (!sessionLoading && !dbLoading && user && initialized) {
       fetchBioimpedanceHistory();
     }
-  }, [user, sessionLoading]);
+  }, [user, profile, sessionLoading, dbLoading, initialized, spreadsheetId]);
 
   if (sessionLoading || loading) {
     return (
@@ -99,9 +105,16 @@ const BioimpedancePage = () => {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Minha Bioimpedância</h1>
-        <Button onClick={() => setIsAddRecordDialogOpen(true)}>
-          <PlusCircle className="mr-2 h-4 w-4" /> Adicionar Registro
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" asChild>
+            <NavLink to="/dashboard">
+              <Home className="mr-2 h-4 w-4" /> Dashboard
+            </NavLink>
+          </Button>
+          <Button onClick={() => setIsAddRecordDialogOpen(true)}>
+            <PlusCircle className="mr-2 h-4 w-4" /> Adicionar Registro
+          </Button>
+        </div>
       </div>
 
       <AddBioimpedanceDialog

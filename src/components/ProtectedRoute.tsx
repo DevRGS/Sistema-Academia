@@ -2,13 +2,13 @@ import { useSession } from '@/contexts/SessionContext';
 import { Navigate, Outlet } from 'react-router-dom';
 
 const ProtectedRoute = () => {
-  const { session, loading } = useSession();
+  const { isAuthenticated, loading } = useSession();
 
   if (loading) {
     return <div>Carregando...</div>; // Or a spinner component
   }
 
-  if (!session) {
+  if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
 

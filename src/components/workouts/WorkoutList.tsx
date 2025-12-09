@@ -43,24 +43,22 @@ const WorkoutList = ({ workouts, onWorkoutUpdated }: { workouts: Workout[], onWo
       <Accordion type="single" collapsible className="w-full">
         {workouts.map((workout) => (
           <AccordionItem value={`item-${workout.id}`} key={workout.id}>
-            <AccordionTrigger className="hover:no-underline">
-              <div className="flex justify-between items-center w-full pr-4">
-                <span className="font-semibold text-lg">{workout.name}</span>
-                <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 pr-4">
+              <AccordionTrigger className="hover:no-underline flex-1">
+                <div className="flex justify-between items-center w-full">
+                  <span className="font-semibold text-lg">{workout.name}</span>
                   <Badge variant="outline">{workout.muscle_group}</Badge>
-                  <Button 
-                    size="sm" 
-                    variant="ghost" 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleEditWorkout(workout);
-                    }}
-                  >
-                    <Edit className="h-4 w-4" />
-                  </Button>
                 </div>
-              </div>
-            </AccordionTrigger>
+              </AccordionTrigger>
+              <Button 
+                size="sm" 
+                variant="ghost" 
+                onClick={() => handleEditWorkout(workout)}
+                className="shrink-0"
+              >
+                <Edit className="h-4 w-4" />
+              </Button>
+            </div>
             <AccordionContent>
               <Table>
                 <TableHeader>

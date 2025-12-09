@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { supabase } from '@/integrations/supabase/client';
+import { useGoogleSheetsDB } from '@/hooks/useGoogleSheetsDB';
+import { useSession } from '@/contexts/SessionContext';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -32,7 +33,7 @@ const exerciseSchema = z.object({
 });
 
 const workoutSchema = z.object({
-  user_id: z.string().uuid('Selecione um aluno.'),
+  user_id: z.string().min(1, 'ID do usuário é obrigatório.'),
   name: z.string().min(1, 'Nome do treino é obrigatório.'),
   muscle_group: z.string().min(1, 'Grupo muscular é obrigatório.'),
   exercises: z.array(exerciseSchema).min(1, 'Adicione pelo menos um exercício.'),
@@ -47,7 +48,15 @@ type StudentProfile = {
 };
 
 const AddWorkoutDialog = ({ isOpen, setIsOpen, onWorkoutAdded }) => {
+  const { user, profile } = useSession();
+  const { select, insert, initialized } = useGoogleSheetsDB();
   const [students, setStudents] = useState<StudentProfile[]>([]);
+  const isAdmin = profile?.role === 'admin';
+  const isStudent = profile?.role === 'student';
+  const isPersonal = profile?.role === 'personal';
+  // For personal trainers, use the profile.id (which is the student's ID when viewing their spreadsheet)
+  const defaultUserId = isStudent ? user?.id : (isPersonal && profile?.id ? profile.id : undefined);
+  
   const {
     register,
     handleSubmit,
@@ -57,7 +66,7 @@ const AddWorkoutDialog = ({ isOpen, setIsOpen, onWorkoutAdded }) => {
   } = useForm<WorkoutFormData>({
     resolver: zodResolver(workoutSchema),
     defaultValues: {
-      user_id: undefined,
+      user_id: defaultUserId,
       name: '',
       muscle_group: '',
       exercises: [{ name: '', sets: '', reps: '', rest: '' }],
@@ -71,34 +80,57 @@ const AddWorkoutDialog = ({ isOpen, setIsOpen, onWorkoutAdded }) => {
 
   useEffect(() => {
     const fetchStudents = async () => {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, first_name, last_name')
-        .eq('role', 'student');
-      
-      if (error) {
-        showError('Erro ao buscar alunos.');
-        console.error(error);
-      } else if (data) {
-        setStudents(data);
+      if (!initialized) return;
+      // Only admins need to fetch students list
+      if (isAdmin) {
+        try {
+          const data = await select<StudentProfile>('profiles', { eq: { column: 'role', value: 'student' } });
+          // Remove duplicates by ID - keep only the first occurrence of each unique ID
+          const uniqueStudents = data.filter((student, index, self) => 
+            index === self.findIndex((s) => String(s.id) === String(student.id))
+          );
+          setStudents(uniqueStudents);
+        } catch (error) {
+          showError('Erro ao buscar alunos.');
+          console.error(error);
+        }
       }
     };
-    if (isOpen) {
+    if (isOpen && initialized) {
       fetchStudents();
     }
-  }, [isOpen]);
+  }, [isOpen, initialized, isAdmin]);
 
   const onSubmit = async (data: WorkoutFormData) => {
-    const { error } = await supabase.from('workouts').insert([data]);
+    if (!initialized) {
+      showError('Banco de dados não inicializado.');
+      return;
+    }
 
-    if (error) {
-      showError('Erro ao criar treino.');
-      console.error(error);
-    } else {
+    try {
+      // Ensure user_id is set correctly - use profile.id for personal trainers viewing student spreadsheets
+      const userId = isStudent && user 
+        ? String(user.id) 
+        : (isPersonal && profile?.id 
+          ? String(profile.id) 
+          : data.user_id);
+      await insert('workouts', {
+        ...data,
+        user_id: userId,
+        created_at: new Date().toISOString(),
+      });
       showSuccess('Treino criado com sucesso!');
       onWorkoutAdded();
-      reset();
+      reset({
+        user_id: defaultUserId,
+        name: '',
+        muscle_group: '',
+        exercises: [{ name: '', sets: '', reps: '', rest: '' }],
+      });
       setIsOpen(false);
+    } catch (error) {
+      showError('Erro ao criar treino.');
+      console.error(error);
     }
   };
 
@@ -112,28 +144,39 @@ const AddWorkoutDialog = ({ isOpen, setIsOpen, onWorkoutAdded }) => {
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit(onSubmit)} className="grid gap-4 py-4">
-          <div>
-            <Label>Aluno</Label>
-            <Controller
-              control={control}
-              name="user_id"
-              render={({ field }) => (
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione um aluno" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {students.map((student) => (
-                      <SelectItem key={student.id} value={student.id}>
-                        {student.first_name} {student.last_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            />
-            {errors.user_id && <p className="text-red-500 text-sm mt-1">{errors.user_id.message}</p>}
-          </div>
+          {isAdmin && (
+            <div>
+              <Label>Aluno</Label>
+              <Controller
+                control={control}
+                name="user_id"
+                render={({ field }) => (
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione um aluno" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {students.map((student) => (
+                        <SelectItem key={student.id} value={student.id}>
+                          {student.first_name} {student.last_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+              {errors.user_id && <p className="text-red-500 text-sm mt-1">{errors.user_id.message}</p>}
+            </div>
+          )}
+          {(isStudent || isPersonal) && (
+            <div className="p-3 bg-muted rounded-md">
+              <p className="text-sm text-muted-foreground">
+                {isStudent 
+                  ? 'Você está criando um treino para si mesmo.'
+                  : 'Você está criando um treino para o aluno cuja planilha está visualizando.'}
+              </p>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <div>

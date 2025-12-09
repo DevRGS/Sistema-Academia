@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { useGoogleSheetsDB } from '@/hooks/useGoogleSheetsDB';
 import { useSession } from '@/contexts/SessionContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -7,9 +7,14 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { DateRange } from 'react-day-picker';
 import { DatePickerWithRange } from '@/components/ui/date-range-picker';
 import { Activity } from 'lucide-react';
+import { subMonths, startOfMonth, endOfMonth, addDays, format, parseISO } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 // Recharts imports
 import { Line } from 'recharts'; // Isolated Line import
 import { LineChart, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { WeightEntry } from '@/pages/WeightTrackingPage';
+import { BioimpedanceRecord } from '@/pages/BioimpedancePage';
+import { Workout } from '@/pages/Workouts';
 
 // Define types for data used in reports
 type DailyNutritionLog = {
@@ -42,7 +47,8 @@ type PersonalRecord = {
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#A28DFF', '#FF69B4', '#32CD32', '#FFD700'];
 
 const ReportsDashboard = () => {
-  const { user, loading: sessionLoading } = useSession();
+  const { user, profile, loading: sessionLoading } = useSession();
+  const { select, initialized, loading: dbLoading, spreadsheetId, originalSpreadsheetId } = useGoogleSheetsDB();
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: subMonths(startOfMonth(new Date()), 1),
@@ -165,68 +171,88 @@ const ReportsDashboard = () => {
 
   useEffect(() => {
     const fetchData = async () => {
-      if (!user || !dateRange?.from) return;
+      if (!user || !dateRange?.from || !initialized) return;
       setLoading(true);
 
-      const fromDate = dateRange.from.toISOString();
-      const toDate = dateRange.to ? addDays(dateRange.to, 1).toISOString() : addDays(dateRange.from, 1).toISOString();
+      try {
+        const fromDate = dateRange.from.toISOString();
+        const toDate = dateRange.to ? addDays(dateRange.to, 1).toISOString() : addDays(dateRange.from, 1).toISOString();
 
-      const [
-        weightResponse,
-        bioimpedanceResponse,
-        nutritionResponse,
-        workoutLogsResponse,
-        personalRecordsResponse,
-        allWorkoutsResponse,
-      ] = await Promise.all([
-        supabase.from('weight_history').select('*').eq('user_id', user.id)
-          .gte('created_at', fromDate)
-          .lt('created_at', toDate)
-          .order('created_at', { ascending: true }),
-        supabase.from('bioimpedance_records').select('*').eq('user_id', user.id)
-          .gte('record_date', fromDate)
-          .lt('record_date', toDate)
-          .order('record_date', { ascending: true }),
-        supabase.from('daily_nutrition_logs').select('*').eq('user_id', user.id)
-          .gte('log_date', fromDate)
-          .lt('log_date', toDate)
-          .order('log_date', { ascending: true }),
-        supabase.from('workout_logs').select('*').eq('user_id', user.id)
-          .gte('log_date', fromDate)
-          .lt('log_date', toDate)
-          .order('log_date', { ascending: true }),
-        supabase.from('personal_records').select('*').eq('user_id', user.id)
-          .gte('achieved_at', fromDate)
-          .lt('achieved_at', toDate)
-          .order('achieved_at', { ascending: true }),
-        supabase.from('workouts').select('*').eq('user_id', user.id), // Fetch all workouts for mapping
-      ]);
+        // If viewing a shared spreadsheet (not own), use profile.id (which will be the student's ID)
+        // Otherwise, use user.id (the full Google ID) to avoid truncation issues
+        const isViewingSharedSpreadsheet = spreadsheetId && originalSpreadsheetId && spreadsheetId !== originalSpreadsheetId;
+        const userId = (isViewingSharedSpreadsheet && profile?.id) ? String(profile.id) : String(user.id);
 
-      if (weightResponse.error) console.error('Error fetching weight history:', weightResponse.error);
-      else setWeightHistory(weightResponse.data as WeightEntry[]);
+        const [
+          weightData,
+          bioimpedanceData,
+          nutritionData,
+          workoutLogsData,
+          personalRecordsData,
+          allWorkoutsData,
+        ] = await Promise.all([
+          select<WeightEntry>('weight_history', {
+            eq: { column: 'user_id', value: userId },
+            gte: { column: 'created_at', value: fromDate },
+            lt: { column: 'created_at', value: toDate },
+            order: { column: 'created_at', ascending: true },
+          }),
+          select<BioimpedanceRecord>('bioimpedance_records', {
+            eq: { column: 'user_id', value: userId },
+            gte: { column: 'record_date', value: fromDate },
+            lt: { column: 'record_date', value: toDate },
+            order: { column: 'record_date', ascending: true },
+          }),
+          select<DailyNutritionLog>('daily_nutrition_logs', {
+            eq: { column: 'user_id', value: userId },
+            gte: { column: 'log_date', value: fromDate },
+            lt: { column: 'log_date', value: toDate },
+            order: { column: 'log_date', ascending: true },
+          }),
+          select<WorkoutLog>('workout_logs', {
+            eq: { column: 'user_id', value: userId },
+            gte: { column: 'log_date', value: fromDate },
+            lt: { column: 'log_date', value: toDate },
+            order: { column: 'log_date', ascending: true },
+          }),
+          select<PersonalRecord>('personal_records', {
+            eq: { column: 'user_id', value: userId },
+            gte: { column: 'achieved_at', value: fromDate },
+            lt: { column: 'achieved_at', value: toDate },
+            order: { column: 'achieved_at', ascending: true },
+          }),
+          select<Workout>('workouts', { eq: { column: 'user_id', value: userId } }),
+        ]);
 
-      if (bioimpedanceResponse.error) console.error('Error fetching bioimpedance history:', bioimpedanceResponse.error);
-      else setBioimpedanceHistory(bioimpedanceResponse.data as BioimpedanceRecord[]);
-
-      if (nutritionResponse.error) console.error('Error fetching daily nutrition logs:', nutritionResponse.error);
-      else setDailyNutritionLogs(nutritionResponse.data as DailyNutritionLog[]);
-
-      if (workoutLogsResponse.error) console.error('Error fetching workout logs:', workoutLogsResponse.error);
-      else setWorkoutLogs(workoutLogsResponse.data as WorkoutLog[]);
-
-      if (personalRecordsResponse.error) console.error('Error fetching personal records:', personalRecordsResponse.error);
-      else setPersonalRecords(personalRecordsResponse.data as PersonalRecord[]);
-
-      if (allWorkoutsResponse.error) console.error('Error fetching all workouts:', allWorkoutsResponse.error);
-      else setAllWorkouts(allWorkoutsResponse.data as Workout[]);
-
-      setLoading(false);
+        setWeightHistory(weightData);
+        setBioimpedanceHistory(bioimpedanceData);
+        setDailyNutritionLogs(nutritionData);
+        setWorkoutLogs(workoutLogsData);
+        setPersonalRecords(personalRecordsData);
+        // Parse exercises from JSON string to array for workouts
+        const parsedWorkouts = allWorkoutsData.map(workout => {
+          if (workout.exercises && typeof workout.exercises === 'string') {
+            try {
+              workout.exercises = JSON.parse(workout.exercises);
+            } catch (e) {
+              console.error('Error parsing exercises:', e);
+              workout.exercises = [];
+            }
+          }
+          return workout;
+        });
+        setAllWorkouts(parsedWorkouts);
+      } catch (error) {
+        console.error('Error fetching reports data:', error);
+      } finally {
+        setLoading(false);
+      }
     };
 
-    if (!sessionLoading && user) {
+    if (!sessionLoading && !dbLoading && user && initialized) {
       fetchData();
     }
-  }, [user, sessionLoading, dateRange]); // Re-fetch when dateRange changes
+  }, [user, profile, sessionLoading, dbLoading, initialized, dateRange, spreadsheetId]);
 
   if (sessionLoading || loading) {
     return (

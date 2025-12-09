@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { supabase } from '@/integrations/supabase/client';
+import { useGoogleSheetsDB } from '@/hooks/useGoogleSheetsDB';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -58,6 +58,7 @@ const EditWorkoutDialog = ({
   setIsOpen: (open: boolean) => void;
   onWorkoutUpdated: () => void;
 }) => {
+  const { select, update, delete: deleteRow, initialized } = useGoogleSheetsDB();
   const [students, setStudents] = useState<StudentProfile[]>([]);
   const {
     register,
@@ -82,71 +83,74 @@ const EditWorkoutDialog = ({
 
   useEffect(() => {
     const fetchStudents = async () => {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, first_name, last_name')
-        .eq('role', 'student');
-      
-      if (error) {
+      if (!initialized) return;
+      try {
+        const data = await select<StudentProfile>('profiles', { eq: { column: 'role', value: 'student' } });
+        // Remove duplicates by ID - keep only the first occurrence of each unique ID
+        const uniqueStudents = data.filter((student, index, self) => 
+          index === self.findIndex((s) => String(s.id) === String(student.id))
+        );
+        setStudents(uniqueStudents);
+      } catch (error) {
         showError('Erro ao buscar alunos.');
         console.error(error);
-      } else if (data) {
-        setStudents(data);
       }
     };
     
-    if (isOpen) {
+    if (isOpen && initialized) {
       fetchStudents();
     }
-  }, [isOpen]);
+  }, [isOpen, initialized]);
 
   useEffect(() => {
     if (workout && isOpen) {
+      // Parse exercises if it's a string
+      let exercises = workout.exercises;
+      if (typeof exercises === 'string') {
+        try {
+          exercises = JSON.parse(exercises);
+        } catch (e) {
+          console.error('Error parsing exercises:', e);
+          exercises = [];
+        }
+      }
       reset({
         user_id: workout.user_id,
         name: workout.name,
         muscle_group: workout.muscle_group,
-        exercises: workout.exercises,
+        exercises: exercises,
       });
     }
   }, [workout, isOpen, reset]);
 
   const onSubmit = async (data: WorkoutFormData) => {
-    if (!workout) return;
+    if (!workout || !initialized) return;
 
-    const { error } = await supabase
-      .from('workouts')
-      .update(data)
-      .eq('id', workout.id);
-
-    if (error) {
-      showError('Erro ao atualizar treino.');
-      console.error(error);
-    } else {
+    try {
+      await update('workouts', data, { column: 'id', value: workout.id });
       showSuccess('Treino atualizado com sucesso!');
       onWorkoutUpdated();
       setIsOpen(false);
+    } catch (error) {
+      showError('Erro ao atualizar treino.');
+      console.error(error);
     }
   };
 
   const handleDeleteWorkout = async () => {
-    if (!workout) return;
+    if (!workout || !initialized) return;
     
     const confirmed = window.confirm('Tem certeza que deseja excluir este treino? Esta ação não pode ser desfeita.');
     if (!confirmed) return;
 
-    const { error } = await supabase
-      .from('workouts')
-      .delete()
-      .eq('id', workout.id);
-
-    if (error) {
-      showError('Erro ao excluir treino.');
-      console.error(error);
-    } else {
+    try {
+      await deleteRow('workouts', { column: 'id', value: workout.id });
       showSuccess('Treino excluído com sucesso!');
       onWorkoutUpdated();
       setIsOpen(false);
+    } catch (error) {
+      showError('Erro ao excluir treino.');
+      console.error(error);
     }
   };
 

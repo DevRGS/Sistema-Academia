@@ -1,7 +1,7 @@
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { supabase } from '@/integrations/supabase/client';
+import { useGoogleSheetsDB } from '@/hooks/useGoogleSheetsDB';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -23,6 +23,21 @@ import {
 } from "@/components/ui/select";
 import { showError, showSuccess } from '@/utils/toast';
 
+// Generate time options from 00:00 to 23:30 in 30-minute intervals
+const generateTimeOptions = (): string[] => {
+  const times: string[] = [];
+  for (let hour = 0; hour < 24; hour++) {
+    for (let minute = 0; minute < 60; minute += 30) {
+      const hourStr = hour.toString().padStart(2, '0');
+      const minuteStr = minute.toString().padStart(2, '0');
+      times.push(`${hourStr}:${minuteStr}`);
+    }
+  }
+  return times;
+};
+
+const TIME_OPTIONS = generateTimeOptions();
+
 // Helper to transform empty strings to null for optional number fields
 const emptyStringToNull = z.preprocess(
   (val) => (val === "" ? null : val),
@@ -34,7 +49,7 @@ const mealSchema = z.object({
     required_error: "Selecione um tipo de refeição."
   }),
   description: z.string().min(1, 'Descrição é obrigatória.'),
-  scheduled_time: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, 'Formato de hora inválido (HH:MM).'),
+  scheduled_time: z.string().min(1, 'Selecione um horário.'),
   calories: emptyStringToNull,
   protein_g: emptyStringToNull,
   carbs_g: emptyStringToNull,
@@ -44,6 +59,7 @@ const mealSchema = z.object({
 type MealFormData = z.infer<typeof mealSchema>;
 
 const AddMealDialog = ({ isOpen, setIsOpen, studentId, onMealAdded }) => {
+  const { insert, initialized } = useGoogleSheetsDB();
   const {
     register,
     handleSubmit,
@@ -55,18 +71,18 @@ const AddMealDialog = ({ isOpen, setIsOpen, studentId, onMealAdded }) => {
   });
 
   const onSubmit = async (data: MealFormData) => {
-    if (!studentId) return;
+    if (!studentId || !initialized) return;
 
-    const { error } = await supabase.from('diet_plans').insert([{ ...data, user_id: studentId }]);
-
-    if (error) {
-      showError('Erro ao adicionar refeição.');
-      console.error(error);
-    } else {
+    try {
+      // Ensure user_id is explicitly converted to string to prevent truncation
+      await insert('diet_plans', { ...data, user_id: String(studentId) });
       showSuccess('Refeição adicionada com sucesso!');
       onMealAdded();
       reset();
       setIsOpen(false);
+    } catch (error) {
+      showError('Erro ao adicionar refeição.');
+      console.error(error);
     }
   };
 
@@ -105,8 +121,25 @@ const AddMealDialog = ({ isOpen, setIsOpen, studentId, onMealAdded }) => {
               {errors.meal && <p className="text-red-500 text-sm mt-1">{errors.meal.message}</p>}
             </div>
             <div>
-              <Label htmlFor="scheduled_time">Horário (HH:MM)</Label>
-              <Input id="scheduled_time" {...register('scheduled_time')} />
+              <Label>Horário</Label>
+              <Controller
+                control={control}
+                name="scheduled_time"
+                render={({ field }) => (
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o horário" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[300px]">
+                      {TIME_OPTIONS.map((time) => (
+                        <SelectItem key={time} value={time}>
+                          {time}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
               {errors.scheduled_time && <p className="text-red-500 text-sm mt-1">{errors.scheduled_time.message}</p>}
             </div>
           </div>

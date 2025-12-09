@@ -1,7 +1,6 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -15,6 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { showError, showSuccess } from '@/utils/toast';
 import { useSession } from '@/contexts/SessionContext';
+import { useGoogleSheetsDB } from '@/hooks/useGoogleSheetsDB';
 
 const weightSchema = z.object({
   weight_kg: z.coerce.number().positive('Peso deve ser positivo.').min(1, 'Peso é obrigatório.'),
@@ -24,6 +24,7 @@ type WeightFormData = z.infer<typeof weightSchema>;
 
 const AddWeightDialog = ({ isOpen, setIsOpen, onWeightAdded }: { isOpen: boolean; setIsOpen: (open: boolean) => void; onWeightAdded: () => void }) => {
   const { user } = useSession();
+  const { insert, initialized } = useGoogleSheetsDB();
   const {
     register,
     handleSubmit,
@@ -34,21 +35,24 @@ const AddWeightDialog = ({ isOpen, setIsOpen, onWeightAdded }: { isOpen: boolean
   });
 
   const onSubmit = async (data: WeightFormData) => {
-    if (!user) {
-      showError('Usuário não autenticado.');
+    if (!user || !initialized) {
+      showError('Usuário não autenticado ou banco de dados não inicializado.');
       return;
     }
 
-    const { error } = await supabase.from('weight_history').insert([{ user_id: user.id, weight_kg: data.weight_kg }]);
-
-    if (error) {
-      showError('Erro ao adicionar peso.');
-      console.error(error);
-    } else {
+    try {
+      await insert('weight_history', {
+        user_id: user.id,
+        weight_kg: data.weight_kg,
+        created_at: new Date().toISOString(),
+      });
       showSuccess('Peso adicionado com sucesso!');
       onWeightAdded();
       reset();
       setIsOpen(false);
+    } catch (error) {
+      showError('Erro ao adicionar peso.');
+      console.error(error);
     }
   };
 

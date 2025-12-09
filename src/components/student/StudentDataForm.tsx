@@ -1,8 +1,8 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { supabase } from '@/integrations/supabase/client';
+import { useGoogleSheetsDB } from '@/hooks/useGoogleSheetsDB';
 import { useSession } from '@/contexts/SessionContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,6 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { showError, showSuccess } from '@/utils/toast';
 import { Skeleton } from '../ui/skeleton';
+import ProfileHistoryDialog from './ProfileHistoryDialog';
+import { History } from 'lucide-react';
 
 const daysOfWeek = [
   { id: 'segunda', label: 'Seg' },
@@ -24,24 +26,33 @@ const daysOfWeek = [
 ];
 
 const studentDataSchema = z.object({
-  height_cm: z.coerce.number().positive('Altura deve ser positiva.').optional().nullable(),
-  weight_kg: z.coerce.number().positive('Peso deve ser positivo.').optional().nullable(),
-  sex: z.enum(['Masculino', 'Feminino']).optional().nullable(),
-  age: z.coerce.number().int().positive('Idade deve ser positiva.').optional().nullable(),
-  routine: z.enum(['Sedentária', 'Ativa', 'Atleta']).optional().nullable(),
-  locomotion_type: z.enum(['Caminha', 'Corre', 'Bicicleta', 'Carro']).optional().nullable(),
-  locomotion_distance_km: z.coerce.number().positive('Distância deve ser positiva.').optional().nullable(),
-  locomotion_time_minutes: z.coerce.number().int().positive('Tempo deve ser positivo.').optional().nullable(),
-  locomotion_days: z.array(z.string()).optional().nullable(),
+  height_cm: z.coerce.number().positive('Altura deve ser positiva.').optional().nullable().default(null),
+  weight_kg: z.coerce.number().positive('Peso deve ser positivo.').optional().nullable().default(null),
+  sex: z.enum(['Masculino', 'Feminino']).optional().nullable().default(null),
+  age: z.coerce.number().int().positive('Idade deve ser positiva.').optional().nullable().default(null),
+  routine: z.enum(['Sedentária', 'Ativa', 'Atleta']).optional().nullable().default(null),
+  locomotion_type: z.enum(['Caminha', 'Corre', 'Bicicleta', 'Carro']).optional().nullable().default(null),
+  locomotion_distance_km: z.coerce.number().positive('Distância deve ser positiva.').optional().nullable().default(null),
+  locomotion_time_minutes: z.coerce.number().int().positive('Tempo deve ser positivo.').optional().nullable().default(null),
+  locomotion_days: z.array(z.string()).optional().nullable().default([]),
 });
 
 type StudentFormData = z.infer<typeof studentDataSchema>;
 
 const StudentDataForm = () => {
   const { user, profile, loading } = useSession();
+  const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const form = useForm<StudentFormData>({
     resolver: zodResolver(studentDataSchema),
     defaultValues: {
+      height_cm: null,
+      weight_kg: null,
+      sex: null,
+      age: null,
+      routine: null,
+      locomotion_type: null,
+      locomotion_distance_km: null,
+      locomotion_time_minutes: null,
       locomotion_days: [],
     },
   });
@@ -51,33 +62,77 @@ const StudentDataForm = () => {
 
   useEffect(() => {
     if (profile) {
-      form.reset({
-        height_cm: profile.height_cm || undefined,
-        weight_kg: profile.weight_kg || undefined,
-        sex: profile.sex || undefined,
-        age: profile.age || undefined,
-        routine: profile.routine || undefined,
-        locomotion_type: profile.locomotion_type || undefined,
-        locomotion_distance_km: profile.locomotion_distance_km || undefined,
-        locomotion_time_minutes: profile.locomotion_time_minutes || undefined,
-        locomotion_days: profile.locomotion_days || [],
-      });
+      console.log('Loading profile data into form:', profile);
+      // Parse locomotion_days if it's a string (from Google Sheets)
+      let locomotionDays = profile.locomotion_days || [];
+      if (typeof locomotionDays === 'string') {
+        try {
+          locomotionDays = JSON.parse(locomotionDays);
+        } catch {
+          locomotionDays = [];
+        }
+      }
+
+      const formData = {
+        height_cm: profile.height_cm ? Number(profile.height_cm) : null,
+        weight_kg: profile.weight_kg ? Number(profile.weight_kg) : null,
+        sex: profile.sex || null,
+        age: profile.age ? Number(profile.age) : null,
+        routine: profile.routine || null,
+        locomotion_type: profile.locomotion_type || null,
+        locomotion_distance_km: profile.locomotion_distance_km ? Number(profile.locomotion_distance_km) : null,
+        locomotion_time_minutes: profile.locomotion_time_minutes ? Number(profile.locomotion_time_minutes) : null,
+        locomotion_days: Array.isArray(locomotionDays) ? locomotionDays : [],
+      };
+      
+      console.log('Form data to set:', formData);
+      form.reset(formData);
     }
   }, [profile, form]);
 
+  const { update, insert, select, initialized } = useGoogleSheetsDB();
+
   const onSubmit = async (data: StudentFormData) => {
-    if (!user) return;
+    if (!user || !initialized) return;
 
-    const { error } = await supabase
-      .from('profiles')
-      .update(data)
-      .eq('id', user.id);
-
-    if (error) {
+    try {
+      // Try to find existing profile
+      const existingProfiles = await select<{ id: string }>('profiles', { eq: { column: 'id', value: user.id } });
+      
+      if (existingProfiles.length > 0) {
+        // Update existing profile
+        await update('profiles', data, { column: 'id', value: user.id });
+      } else {
+        // Insert new profile with user ID and additional data
+        await insert('profiles', {
+          id: user.id,
+          first_name: profile?.first_name || '',
+          last_name: profile?.last_name || '',
+          role: profile?.role || 'student',
+          email: user.email,
+          ...data,
+        });
+      }
+      
+      // Save to history - ensure user_id is saved as string to avoid truncation
+      await insert('profile_history', {
+        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+        user_id: String(user.id), // Convert to string to prevent number truncation
+        ...data,
+        created_at: new Date().toISOString(),
+      });
+      
+      // Reload profile from database to get updated data
+      const updatedProfiles = await select<Profile & { email?: string }>('profiles', { eq: { column: 'id', value: user.id } });
+      if (updatedProfiles.length > 0) {
+        // Trigger profile reload in SessionContext
+        window.dispatchEvent(new CustomEvent('profileUpdated'));
+      }
+      
+      showSuccess('Dados salvos com sucesso!');
+    } catch (error) {
       showError('Erro ao salvar os dados.');
       console.error(error);
-    } else {
-      showSuccess('Dados salvos com sucesso!');
     }
   };
 
@@ -86,35 +141,72 @@ const StudentDataForm = () => {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Meus Dados</CardTitle>
-        <CardDescription>
-          Preencha suas informações para um acompanhamento mais preciso e cálculo de suas necessidades calóricas.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
+    <>
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Meus Dados</CardTitle>
+              <CardDescription>
+                Preencha suas informações para um acompanhamento mais preciso e cálculo de suas necessidades calóricas.
+              </CardDescription>
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => setHistoryDialogOpen(true)}
+              className="flex items-center gap-2"
+            >
+              <History className="h-4 w-4" />
+              Histórico
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <FormField control={form.control} name="height_cm" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Altura (cm)</FormLabel>
-                  <FormControl><Input type="number" placeholder="175" {...field} /></FormControl>
+                  <FormControl>
+                    <Input 
+                      type="number" 
+                      placeholder="175" 
+                      {...field} 
+                      value={field.value ?? ''}
+                      onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)}
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )} />
               <FormField control={form.control} name="weight_kg" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Peso (kg)</FormLabel>
-                  <FormControl><Input type="number" placeholder="78.5" {...field} /></FormControl>
+                  <FormControl>
+                    <Input 
+                      type="number" 
+                      placeholder="78.5" 
+                      {...field} 
+                      value={field.value ?? ''}
+                      onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)}
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )} />
               <FormField control={form.control} name="age" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Idade</FormLabel>
-                  <FormControl><Input type="number" placeholder="30" {...field} /></FormControl>
+                  <FormControl>
+                    <Input 
+                      type="number" 
+                      placeholder="30" 
+                      {...field} 
+                      value={field.value ?? ''}
+                      onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)}
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )} />
@@ -123,7 +215,7 @@ const StudentDataForm = () => {
               <FormField control={form.control} name="sex" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Sexo</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value || ''}>
                     <FormControl><SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger></FormControl>
                     <SelectContent>
                       <SelectItem value="Masculino">Masculino</SelectItem>
@@ -136,7 +228,7 @@ const StudentDataForm = () => {
               <FormField control={form.control} name="routine" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Rotina</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value || ''}>
                     <FormControl><SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger></FormControl>
                     <SelectContent>
                       <SelectItem value="Sedentária">Sedentária</SelectItem>
@@ -152,7 +244,7 @@ const StudentDataForm = () => {
             <FormField control={form.control} name="locomotion_type" render={({ field }) => (
               <FormItem>
                 <FormLabel>Locomoção Principal (Opcional)</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <Select onValueChange={field.onChange} value={field.value || ''}>
                   <FormControl><SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger></FormControl>
                   <SelectContent>
                     <SelectItem value="Caminha">Caminha</SelectItem>
@@ -171,14 +263,30 @@ const StudentDataForm = () => {
                   <FormField control={form.control} name="locomotion_distance_km" render={({ field }) => (
                     <FormItem>
                       <FormLabel>Distância (km)</FormLabel>
-                      <FormControl><Input type="number" placeholder="5" {...field} /></FormControl>
+                      <FormControl>
+                        <Input 
+                          type="number" 
+                          placeholder="5" 
+                          {...field} 
+                          value={field.value ?? ''}
+                          onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)}
+                        />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )} />
                   <FormField control={form.control} name="locomotion_time_minutes" render={({ field }) => (
                     <FormItem>
                       <FormLabel>Tempo médio (minutos)</FormLabel>
-                      <FormControl><Input type="number" placeholder="30" {...field} /></FormControl>
+                      <FormControl>
+                        <Input 
+                          type="number" 
+                          placeholder="30" 
+                          {...field} 
+                          value={field.value ?? ''}
+                          onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)}
+                        />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )} />
@@ -218,6 +326,9 @@ const StudentDataForm = () => {
         </Form>
       </CardContent>
     </Card>
+    
+    <ProfileHistoryDialog isOpen={historyDialogOpen} setIsOpen={setHistoryDialogOpen} />
+    </>
   );
 };
 

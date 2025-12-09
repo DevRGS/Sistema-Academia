@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { useGoogleSheetsDB } from '@/hooks/useGoogleSheetsDB';
 import {
   Table,
   TableBody,
@@ -27,42 +27,39 @@ type Profile = {
 };
 
 const StudentList = () => {
+  const { select, update, initialized, loading: dbLoading } = useGoogleSheetsDB();
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchProfiles = async () => {
+    if (!initialized) return;
     setLoading(true);
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('id, first_name, last_name, role')
-      .order('first_name');
-
-    if (error) {
+    try {
+      const data = await select<Profile>('profiles', { order: { column: 'first_name', ascending: true } });
+      setProfiles(data);
+    } catch (error) {
       showError('Erro ao buscar usuários.');
       console.error(error);
-    } else {
-      setProfiles(data as Profile[]);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
-    fetchProfiles();
-  }, []);
+    if (initialized && !dbLoading) {
+      fetchProfiles();
+    }
+  }, [initialized, dbLoading]);
 
   const handleRoleChange = async (userId: string, newRole: 'admin' | 'student') => {
-    const { error } = await supabase
-      .from('profiles')
-      .update({ role: newRole })
-      .eq('id', userId);
-
-    if (error) {
+    if (!initialized) return;
+    try {
+      await update('profiles', { role: newRole }, { column: 'id', value: userId });
+      showSuccess('Função atualizada com sucesso!');
+      setProfiles(profiles.map(p => p.id === userId ? { ...p, role: newRole } : p));
+    } catch (error) {
       showError('Falha ao atualizar a função.');
       console.error(error);
-    } else {
-      showSuccess('Função atualizada com sucesso!');
-      // Update local state to reflect the change immediately
-      setProfiles(profiles.map(p => p.id === userId ? { ...p, role: newRole } : p));
     }
   };
 

@@ -1,54 +1,87 @@
 import { useState, useEffect } from 'react';
 import { useSession } from '@/contexts/SessionContext';
+import { useGoogleSheetsDB } from '@/hooks/useGoogleSheetsDB';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Weight } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
 import { Skeleton } from '../ui/skeleton';
 
 const WeightCard = () => {
-  const { user, loading: sessionLoading } = useSession();
+  const { user, profile, loading: sessionLoading } = useSession();
+  const { select, initialized, loading: dbLoading, spreadsheetId, originalSpreadsheetId } = useGoogleSheetsDB();
   const [latestWeight, setLatestWeight] = useState<number | null>(null);
   const [previousWeight, setPreviousWeight] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchLatestWeight = async () => {
-      if (!user) {
+      if (!user || !initialized) {
         setLoading(false);
         return;
       }
 
       setLoading(true);
-      const { data, error } = await supabase
-        .from('weight_history')
-        .select('weight_kg, created_at')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(2); // Get the two most recent entries
+      try {
+        // First, try to get weight from profile
+        if (profile?.weight_kg) {
+          const profileWeight = typeof profile.weight_kg === 'string' 
+            ? Number(profile.weight_kg) 
+            : profile.weight_kg;
+          if (!isNaN(profileWeight)) {
+            setLatestWeight(profileWeight);
+          }
+        }
 
-      if (error) {
-        console.error('Error fetching weight history:', error);
-        setLatestWeight(null);
-        setPreviousWeight(null);
-      } else if (data && data.length > 0) {
-        setLatestWeight(data[0].weight_kg);
-        if (data.length > 1) {
-          setPreviousWeight(data[1].weight_kg);
+        // Then, try to get from weight_history for comparison
+        // If viewing a shared spreadsheet (not own), use profile.id (which will be the student's ID)
+        // Otherwise, use user.id (the full Google ID) to avoid truncation issues
+        const isViewingSharedSpreadsheet = spreadsheetId && originalSpreadsheetId && spreadsheetId !== originalSpreadsheetId;
+        const userId = (isViewingSharedSpreadsheet && profile?.id) ? String(profile.id) : String(user.id);
+        const data = await select<{ weight_kg: number; created_at: string }>('weight_history', {
+          eq: { column: 'user_id', value: userId },
+          order: { column: 'created_at', ascending: false },
+        });
+
+        if (data && data.length > 0) {
+          // Use weight from history if available (more recent), otherwise use profile weight
+          if (!latestWeight) {
+            setLatestWeight(data[0].weight_kg);
+          }
+          if (data.length > 1) {
+            setPreviousWeight(data[1].weight_kg);
+          } else {
+            setPreviousWeight(null);
+          }
         } else {
+          // If no history and no profile weight, set to null
+          if (!profile?.weight_kg) {
+            setLatestWeight(null);
+          }
           setPreviousWeight(null);
         }
-      } else {
-        setLatestWeight(null);
+      } catch (error) {
+        console.error('Error fetching weight history:', error);
+        // Fallback to profile weight if available
+        if (profile?.weight_kg) {
+          const profileWeight = typeof profile.weight_kg === 'string' 
+            ? Number(profile.weight_kg) 
+            : profile.weight_kg;
+          if (!isNaN(profileWeight)) {
+            setLatestWeight(profileWeight);
+          }
+        } else {
+          setLatestWeight(null);
+        }
         setPreviousWeight(null);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
-    if (!sessionLoading) {
+    if (!sessionLoading && !dbLoading && initialized) {
       fetchLatestWeight();
     }
-  }, [user, sessionLoading]);
+  }, [user, profile, sessionLoading, dbLoading, initialized, spreadsheetId]);
 
   if (loading) {
     return <Skeleton className="h-[120px] w-full" />;

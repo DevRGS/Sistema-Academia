@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { supabase } from '@/integrations/supabase/client';
+import { useGoogleSheetsDB } from '@/hooks/useGoogleSheetsDB';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -59,6 +59,7 @@ type BioimpedanceFormData = z.infer<typeof bioimpedanceSchema>;
 
 const AddBioimpedanceDialog = ({ isOpen, setIsOpen, onRecordAdded }: { isOpen: boolean; setIsOpen: (open: boolean) => void; onRecordAdded: () => void }) => {
   const { user, profile } = useSession();
+  const { insert, initialized } = useGoogleSheetsDB();
   const {
     register,
     handleSubmit,
@@ -111,17 +112,17 @@ const AddBioimpedanceDialog = ({ isOpen, setIsOpen, onRecordAdded }: { isOpen: b
 
 
   const onSubmit = async (data: BioimpedanceFormData) => {
-    if (!user) {
-      showError('Usuário não autenticado.');
+    if (!user || !initialized) {
+      showError('Usuário não autenticado ou banco de dados não inicializado.');
       return;
     }
 
-    const { error } = await supabase.from('bioimpedance_records').insert([{ user_id: user.id, ...data }]);
-
-    if (error) {
-      showError('Erro ao adicionar registro de bioimpedância.');
-      console.error(error);
-    } else {
+    try {
+      await insert('bioimpedance_records', {
+        user_id: user.id,
+        ...data,
+        created_at: new Date().toISOString(),
+      });
       showSuccess('Registro de bioimpedância adicionado com sucesso!');
       onRecordAdded();
       reset({
@@ -139,6 +140,9 @@ const AddBioimpedanceDialog = ({ isOpen, setIsOpen, onRecordAdded }: { isOpen: b
         basal_metabolic_rate_kcal: undefined, visceral_fat_level: undefined, metabolic_age: undefined,
       });
       setIsOpen(false);
+    } catch (error) {
+      showError('Erro ao adicionar registro de bioimpedância.');
+      console.error(error);
     }
   };
 

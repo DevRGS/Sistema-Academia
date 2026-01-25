@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { PlusCircle, Home } from 'lucide-react';
 import AddWorkoutDialog from '@/components/workouts/AddWorkoutDialog';
 import WorkoutList from '@/components/workouts/WorkoutList';
+import BaseWorkoutGenerator from '@/components/workouts/BaseWorkoutGenerator';
 import { useSession } from '@/contexts/SessionContext';
 
 export type Exercise = {
@@ -87,6 +88,8 @@ const WorkoutsPage = () => {
           )}
         </div>
       </div>
+      
+      <BaseWorkoutGenerator onWorkoutsGenerated={fetchWorkouts} />
       
       {(profile?.role === 'admin' || profile?.role === 'student' || profile?.role === 'personal') && (
         <AddWorkoutDialog

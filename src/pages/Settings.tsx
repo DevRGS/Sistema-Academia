@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom';
 import StudentDataForm from '@/components/student/StudentDataForm';
 import ShareWithPersonalDialog from '@/components/student/ShareWithPersonalDialog';
 import SharedAccessList from '@/components/student/SharedAccessList';
+import LimitationsForm from '@/components/settings/LimitationsForm';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useSession } from '@/contexts/SessionContext';
@@ -26,6 +27,7 @@ const SettingsPage = () => {
         </Button>
       </div>
       <StudentDataForm />
+      <LimitationsForm />
       
       {isStudent && (
         <>

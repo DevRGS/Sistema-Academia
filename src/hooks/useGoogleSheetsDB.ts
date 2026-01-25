@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { initializeGoogleAPI, getAccessToken } from '@/integrations/google/client';
+import { cacheService } from '@/utils/cacheService';
 
 // Database schema - todas as tabelas do sistema
 const TABLE_SCHEMAS = {
-  profiles: ['id', 'first_name', 'last_name', 'role', 'email', 'height_cm', 'weight_kg', 'sex', 'age', 'routine', 'locomotion_type', 'locomotion_distance_km', 'locomotion_time_minutes', 'locomotion_days'],
+  profiles: ['id', 'first_name', 'last_name', 'role', 'email', 'height_cm', 'weight_kg', 'sex', 'age', 'routine', 'locomotion_type', 'locomotion_distance_km', 'locomotion_time_minutes', 'locomotion_days', 'limitations'],
   profile_history: ['id', 'user_id', 'height_cm', 'weight_kg', 'sex', 'age', 'routine', 'locomotion_type', 'locomotion_distance_km', 'locomotion_time_minutes', 'locomotion_days', 'created_at'],
   weight_history: ['id', 'user_id', 'weight_kg', 'created_at'],
   bioimpedance_records: [
@@ -496,7 +497,113 @@ export const useGoogleSheetsDB = (): UseGoogleSheetsDBReturn => {
     }
   };
 
-  // SELECT operation
+  // Helper function to parse rows from Google Sheets response
+  const parseRows = (rows: any[][], headers: string[]): any[] => {
+    return rows.slice(1).map((row: any[]) => {
+      const obj: any = {};
+      headers.forEach((header, index) => {
+        let value = row[index];
+        // Handle empty cells
+        if (value === undefined || value === '') {
+          value = null;
+        } else {
+          // Keep user_id and id columns as strings to prevent truncation
+          // Remove apostrophe prefix if present (used to force text format)
+          if (header === 'user_id' || header === 'id') {
+            const strValue = String(value);
+            // Remove leading apostrophe if present (Google Sheets text format prefix)
+            value = strValue.startsWith("'") ? strValue.substring(1) : strValue;
+          } else {
+            // Try to parse numbers and booleans for other columns
+            if (value === 'true') value = true;
+            else if (value === 'false') value = false;
+            else if (!isNaN(Number(value)) && value !== '') {
+              const num = Number(value);
+              if (Number.isInteger(num)) value = num;
+              else value = parseFloat(value);
+            }
+          }
+        }
+        obj[header] = value;
+      });
+      return obj;
+    });
+  };
+
+  // Helper function to apply filters and sorting
+  const applyFilters = <T>(data: any[], options?: {
+    eq?: { column: string; value: any };
+    order?: { column: string; ascending?: boolean };
+    gte?: { column: string; value: string };
+    lt?: { column: string; value: string };
+  }): T[] => {
+    let filtered = data;
+    
+    if (options?.eq) {
+      console.log(`Filtering by ${options.eq.column} = ${options.eq.value} (type: ${typeof options.eq.value})`);
+      filtered = filtered.filter((row: any) => {
+        const val = row[options.eq!.column];
+        // Convert both to strings for comparison to handle number/string mismatches
+        const valStr = String(val || '');
+        const searchStr = String(options.eq!.value || '');
+        const match = val === options.eq!.value || valStr === searchStr;
+        if (match) {
+          console.log(`Match found:`, row, `(val: ${val}, search: ${options.eq!.value})`);
+        }
+        return match;
+      });
+      console.log(`Filtered results:`, filtered.length);
+    }
+    if (options?.gte) {
+      filtered = filtered.filter((row: any) => {
+        const val = row[options.gte!.column];
+        return val && val >= options.gte!.value;
+      });
+    }
+    if (options?.lt) {
+      filtered = filtered.filter((row: any) => {
+        const val = row[options.lt!.column];
+        return val && val < options.lt!.value;
+      });
+    }
+
+    // Apply sorting
+    if (options?.order) {
+      filtered.sort((a: any, b: any) => {
+        const aVal = a[options.order!.column];
+        const bVal = b[options.order!.column];
+        const comparison = aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
+        return options.order!.ascending !== false ? comparison : -comparison;
+      });
+    }
+
+    return filtered as T[];
+  };
+
+  // Função auxiliar para atualizar cache em background
+  const updateCacheInBackground = async (tableName: string, spreadsheetId: string): Promise<void> => {
+    try {
+      const response = await retryWithBackoff(async () => {
+        return await window.gapi.client.sheets.spreadsheets.values.get({
+          spreadsheetId,
+          range: `${tableName}!A:ZZ`,
+        });
+      });
+
+      const rows = response.result.values || [];
+      if (rows.length === 0) return;
+
+      const headers = rows[0] as string[];
+      const data = parseRows(rows, headers);
+
+      await cacheService.setCache(tableName, spreadsheetId, data);
+      console.log(`[Cache] Cache atualizado em background para ${tableName}`);
+    } catch (err) {
+      console.warn(`[Cache] Erro ao atualizar cache em background:`, err);
+    }
+  };
+
+  // SELECT operation with cache-first strategy
   const select = useCallback(async <T>(
     tableName: string,
     options?: {
@@ -508,8 +615,31 @@ export const useGoogleSheetsDB = (): UseGoogleSheetsDBReturn => {
   ): Promise<T[]> => {
     if (!spreadsheetId) throw new Error('Database not initialized');
 
+    // 1. PRIMEIRO: Tentar buscar do cache local (rápido)
     try {
-      // Use retry with backoff for rate limiting
+      const cachedData = await cacheService.getCache(tableName, spreadsheetId);
+      const isCacheValid = await cacheService.isCacheValid(tableName, spreadsheetId, 5 * 60 * 1000); // 5 minutos
+
+      if (cachedData && isCacheValid) {
+        console.log(`[Cache] Dados carregados do cache local para ${tableName}`);
+        
+        // Aplicar filtros nos dados do cache
+        const filtered = applyFilters<T>(cachedData, options);
+
+        // 2. SEGUNDO PLANO: Atualizar cache em background (não bloqueia)
+        updateCacheInBackground(tableName, spreadsheetId).catch(err => {
+          console.warn(`[Cache] Erro ao atualizar cache em background:`, err);
+        });
+
+        return filtered;
+      }
+    } catch (cacheError) {
+      console.warn(`[Cache] Erro ao acessar cache:`, cacheError);
+      // Continua para buscar da API se o cache falhar
+    }
+
+    // 3. Se não houver cache válido, buscar da API do Google Sheets
+    try {
       const response = await retryWithBackoff(async () => {
         return await window.gapi.client.sheets.spreadsheets.values.get({
           spreadsheetId,
@@ -526,82 +656,25 @@ export const useGoogleSheetsDB = (): UseGoogleSheetsDBReturn => {
       const headers = rows[0] as string[];
       console.log(`Headers for ${tableName}:`, headers);
       
-      const data = rows.slice(1).map((row: any[], rowIndex: number) => {
-        const obj: any = {};
-        headers.forEach((header, index) => {
-          let value = row[index];
-          // Handle empty cells
-          if (value === undefined || value === '') {
-            value = null;
-          } else {
-            // Keep user_id and id columns as strings to prevent truncation
-            // Remove apostrophe prefix if present (used to force text format)
-            if (header === 'user_id' || header === 'id') {
-              const strValue = String(value);
-              // Remove leading apostrophe if present (Google Sheets text format prefix)
-              value = strValue.startsWith("'") ? strValue.substring(1) : strValue;
-            } else {
-              // Try to parse numbers and booleans for other columns
-              if (value === 'true') value = true;
-              else if (value === 'false') value = false;
-              else if (!isNaN(Number(value)) && value !== '') {
-                const num = Number(value);
-                if (Number.isInteger(num)) value = num;
-                else value = parseFloat(value);
-              }
-            }
-          }
-          obj[header] = value;
-        });
-        return obj;
-      });
+      const data = parseRows(rows, headers);
 
       console.log(`Total rows in ${tableName}:`, data.length);
       if (data.length > 0) {
         console.log(`First row sample:`, data[0]);
       }
 
-      // Apply filters
-      let filtered = data;
-      if (options?.eq) {
-        console.log(`Filtering by ${options.eq.column} = ${options.eq.value} (type: ${typeof options.eq.value})`);
-        filtered = filtered.filter((row: any) => {
-          const val = row[options.eq!.column];
-          // Convert both to strings for comparison to handle number/string mismatches
-          const valStr = String(val || '');
-          const searchStr = String(options.eq!.value || '');
-          const match = val === options.eq!.value || valStr === searchStr;
-          if (match) {
-            console.log(`Match found:`, row, `(val: ${val}, search: ${options.eq!.value})`);
-          }
-          return match;
-        });
-        console.log(`Filtered results:`, filtered.length);
-      }
-      if (options?.gte) {
-        filtered = filtered.filter((row: any) => {
-          const val = row[options.gte!.column];
-          return val && val >= options.gte!.value;
-        });
-      }
-      if (options?.lt) {
-        filtered = filtered.filter((row: any) => {
-          const val = row[options.lt!.column];
-          return val && val < options.lt!.value;
-        });
+      // Aplicar filtros
+      const filtered = applyFilters<T>(data, options);
+
+      // Salvar no cache após buscar da API
+      try {
+        await cacheService.setCache(tableName, spreadsheetId, data);
+        console.log(`[Cache] Dados salvos no cache para ${tableName}`);
+      } catch (cacheError) {
+        console.warn(`[Cache] Erro ao salvar no cache:`, cacheError);
       }
 
-      // Apply sorting
-      if (options?.order) {
-        filtered.sort((a: any, b: any) => {
-          const aVal = a[options.order!.column];
-          const bVal = b[options.order!.column];
-          const comparison = aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
-          return options.order!.ascending !== false ? comparison : -comparison;
-        });
-      }
-
-      return filtered as T[];
+      return filtered;
     } catch (err: any) {
       console.error('Error selecting data:', err);
       // If rate limited after all retries, return empty array instead of throwing
@@ -661,6 +734,10 @@ export const useGoogleSheetsDB = (): UseGoogleSheetsDBReturn => {
           values: rows,
         },
       });
+
+      // Invalidar cache após inserção
+      await cacheService.invalidateTable(tableName, spreadsheetId);
+      console.log(`[Cache] Cache invalidado para ${tableName} após insert`);
     } catch (err: any) {
       console.error('Error inserting data:', err);
       throw err;
@@ -700,6 +777,10 @@ export const useGoogleSheetsDB = (): UseGoogleSheetsDBReturn => {
           values: [rowValues],
         },
       });
+
+      // Invalidar cache após atualização
+      await cacheService.invalidateTable(tableName, spreadsheetId);
+      console.log(`[Cache] Cache invalidado para ${tableName} após update`);
     } catch (err: any) {
       console.error('Error updating data:', err);
       throw err;
@@ -747,6 +828,10 @@ export const useGoogleSheetsDB = (): UseGoogleSheetsDBReturn => {
           ],
         },
       });
+
+      // Invalidar cache após deleção
+      await cacheService.invalidateTable(tableName, spreadsheetId);
+      console.log(`[Cache] Cache invalidado para ${tableName} após delete`);
     } catch (err: any) {
       console.error('Error deleting data:', err);
       throw err;

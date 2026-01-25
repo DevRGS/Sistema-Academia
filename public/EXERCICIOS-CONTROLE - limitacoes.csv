@@ -1,0 +1,12 @@
+Limitação,Coluna Alvo,Limite Máximo Permitido,Limite Carga Axial,Estabilidade Mínima Exigida,Ação
+Hérnia de Disco Lombar,Estresse Lombar,3,2,Nenhuma,Bloqueio Total
+Hérnia de Disco Instável / Aguda,Estresse Lombar,1,1,Alta,Bloqueio Total
+Hérnia_Lombar,Estresse Lombar,3,2,Nenhuma,Bloqueio Total
+Impacto no Ombro / Manguito / Tendinite,Estresse Ombro,3,Nenhuma,Nenhuma,Bloqueio Total
+Síndrome do Impacto no Ombro,Estresse Ombro,3,Nenhuma,Nenhuma,Bloqueio Total
+Instabilidade / Luxação de Ombro,Estresse Ombro,4,Nenhuma,Alta,Bloqueio Total
+Epicondilite (Lateral ou Medial),Estresse Cotovelo,3,Nenhuma,Nenhuma,Bloqueio Total
+Lesão de Punho,Estresse Punho,2,Nenhuma,Nenhuma,Bloqueio Total
+Condromalácia Patelar (Grave),Estresse Joelho,3,Nenhuma,Nenhuma,Aviso de Cuidado
+Equilíbrio Precário,Estabilidade,5,Nenhuma,Alta,Bloqueio Total
+Cervicalgia,Estresse Ombro,4,3,Nenhuma,Bloqueio Total

@@ -4,17 +4,27 @@ import { useSession } from '@/contexts/SessionContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
 import { DateRange } from 'react-day-picker';
 import { DatePickerWithRange } from '@/components/ui/date-range-picker';
-import { Activity } from 'lucide-react';
-import { subMonths, startOfMonth, endOfMonth, addDays, format, parseISO } from 'date-fns';
+import { Activity, Clock, Pause, Filter } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { subMonths, startOfMonth, endOfMonth, addDays, format, parseISO, startOfYear } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 // Recharts imports
-import { Line } from 'recharts'; // Isolated Line import
-import { LineChart, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { Line } from 'recharts';
+import { LineChart, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 import { WeightEntry } from '@/pages/WeightTrackingPage';
-import { BioimpedanceRecord } from '@/pages/BioimpedancePage';
 import { Workout } from '@/pages/Workouts';
+import { loadExercises, type Exercise as ExerciseCSV } from '@/utils/exerciseService';
 
 // Define types for data used in reports
 type DailyNutritionLog = {
@@ -33,7 +43,10 @@ type WorkoutLog = {
   user_id: string;
   exercise_name: string;
   log_date: string;
-  performance: any; // Adjust as per your actual performance data structure
+  performance: any;
+  workout_duration_seconds?: number;
+  rest_time_seconds?: number;
+  workout_id?: string;
 };
 
 type PersonalRecord = {
@@ -41,42 +54,89 @@ type PersonalRecord = {
   user_id: string;
   exercise_name: string;
   pr_weight: number;
-  achieved_at: string; // date string
+  achieved_at: string;
 };
 
+type PeriodFilter = 'thisMonth' | 'lastMonth' | 'thisYear' | 'custom';
+
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#A28DFF', '#FF69B4', '#32CD32', '#FFD700'];
+
+// Normalize exercise name for matching (remove accents, uppercase, trim)
+const normalizeExerciseName = (name: string): string => {
+  return name
+    .trim()
+    .toUpperCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // Remove accents
+    .replace(/[^A-Z0-9\s]/g, '') // Remove special characters except spaces
+    .replace(/\s+/g, ' '); // Normalize spaces
+};
 
 const ReportsDashboard = () => {
   const { user, profile, loading: sessionLoading } = useSession();
   const { select, initialized, loading: dbLoading, spreadsheetId, originalSpreadsheetId } = useGoogleSheetsDB();
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
-    from: subMonths(startOfMonth(new Date()), 1),
+    from: startOfMonth(new Date()),
     to: endOfMonth(new Date()),
   });
+  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('thisMonth');
+  const [exercisesCSV, setExercisesCSV] = useState<ExerciseCSV[]>([]);
+  const [muscleGroupFilter, setMuscleGroupFilter] = useState<string>('all');
 
   const [weightHistory, setWeightHistory] = useState<WeightEntry[]>([]);
-  const [bioimpedanceHistory, setBioimpedanceHistory] = useState<BioimpedanceRecord[]>([]);
   const [dailyNutritionLogs, setDailyNutritionLogs] = useState<DailyNutritionLog[]>([]);
   const [workoutLogs, setWorkoutLogs] = useState<WorkoutLog[]>([]);
   const [personalRecords, setPersonalRecords] = useState<PersonalRecord[]>([]);
-  const [allWorkouts, setAllWorkouts] = useState<Workout[]>([]); // To map exercises to muscle groups/workout names
+  const [allWorkouts, setAllWorkouts] = useState<Workout[]>([]);
 
-  // --- Chart Data Preparation (moved to top-level) ---
+  // Load exercises CSV on mount
+  useEffect(() => {
+    const loadCSVExercises = async () => {
+      try {
+        const exercises = await loadExercises();
+        setExercisesCSV(exercises);
+      } catch (error) {
+        console.error('Error loading exercises CSV:', error);
+      }
+    };
+    loadCSVExercises();
+  }, []);
+
+  // Update date range based on period filter
+  useEffect(() => {
+    const now = new Date();
+    switch (periodFilter) {
+      case 'thisMonth':
+        setDateRange({
+          from: startOfMonth(now),
+          to: endOfMonth(now),
+        });
+        break;
+      case 'lastMonth':
+        const lastMonth = subMonths(now, 1);
+        setDateRange({
+          from: startOfMonth(lastMonth),
+          to: endOfMonth(lastMonth),
+        });
+        break;
+      case 'thisYear':
+        setDateRange({
+          from: startOfYear(now),
+          to: endOfMonth(now),
+        });
+        break;
+      case 'custom':
+        // Keep current dateRange
+        break;
+    }
+  }, [periodFilter]);
 
   // Weight Chart Data
   const weightChartData = useMemo(() => weightHistory.map(entry => ({
     date: format(parseISO(entry.created_at), 'dd/MM', { locale: ptBR }),
     weight: entry.weight_kg,
   })), [weightHistory]);
-
-  // Bioimpedance Chart Data (simplified for dashboard)
-  const bioimpedanceChartData = useMemo(() => bioimpedanceHistory.map(entry => ({
-    date: format(parseISO(entry.record_date), 'dd/MM', { locale: ptBR }),
-    body_fat_percentage: entry.body_fat_percentage,
-    muscle_mass_kg: entry.muscle_mass_kg,
-    bmi: entry.bmi,
-  })), [bioimpedanceHistory]);
 
   // Daily Nutrition Chart Data
   const nutritionChartData = useMemo(() => dailyNutritionLogs.map(log => ({
@@ -87,11 +147,11 @@ const ReportsDashboard = () => {
     fat: log.total_fat_g,
   })), [dailyNutritionLogs]);
 
-  // Workout Frequency Chart Data (distinct log dates)
+  // Workout Frequency Chart Data
   const workoutChartData = useMemo(() => {
     const workoutFrequencyMap = workoutLogs.reduce((acc, log) => {
       const date = format(parseISO(log.log_date), 'dd/MM/yyyy', { locale: ptBR });
-      acc[date] = (acc[date] || 0) + 1; // Count logged exercises per day
+      acc[date] = (acc[date] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
 
@@ -100,74 +160,283 @@ const ReportsDashboard = () => {
       .sort((a, b) => parseISO(a.date, { locale: ptBR }).getTime() - parseISO(b.date, { locale: ptBR }).getTime());
   }, [workoutLogs]);
 
-  // Strength Evolution (Personal Records)
-  const prChartData = useMemo(() => {
-    const exercisePRs: { [key: string]: { date: string; weight: number }[] } = {};
-    personalRecords.forEach(pr => {
-      if (!exercisePRs[pr.exercise_name]) {
-        exercisePRs[pr.exercise_name] = [];
-      }
-      exercisePRs[pr.exercise_name].push({
-        date: format(parseISO(pr.achieved_at), 'dd/MM', { locale: ptBR }),
-        weight: pr.pr_weight,
-      });
+
+  // Map exercise name to muscle group from CSV (case-insensitive, accent-insensitive)
+  const exerciseToMuscleGroupMap = useMemo(() => {
+    const map = new Map<string, string>();
+    exercisesCSV.forEach(exercise => {
+      const exerciseName = exercise.exercicio.trim();
+      const normalizedName = normalizeExerciseName(exerciseName);
+      
+      // Store multiple variations for better matching
+      map.set(exerciseName, exercise.grupo); // Original
+      map.set(exerciseName.toUpperCase(), exercise.grupo); // Uppercase
+      map.set(normalizedName, exercise.grupo); // Normalized (no accents, uppercase)
+      map.set(exerciseName.toLowerCase(), exercise.grupo); // Lowercase
     });
+    return map;
+  }, [exercisesCSV]);
 
-    // Sort each exercise's PRs by date
-    for (const exerciseName in exercisePRs) {
-      exercisePRs[exerciseName].sort((a, b) => parseISO(a.date, { locale: ptBR }).getTime() - parseISO(b.date, { locale: ptBR }).getTime());
-    }
-    return exercisePRs;
-  }, [personalRecords]);
-
-  // Workouts per Muscle Group & Percentage of Total Logged Exercises per Workout Name
-  const { muscleGroupDistribution, workoutNameDistribution, mostPerformedExercise } = useMemo(() => {
-    const exerciseToMuscleGroupMap = new Map<string, string>();
-    const exerciseToWorkoutNameMap = new Map<string, string>();
-
-    allWorkouts.forEach(workout => {
-      workout.exercises.forEach(exercise => {
-        exerciseToMuscleGroupMap.set(exercise.name, workout.muscle_group);
-        exerciseToWorkoutNameMap.set(exercise.name, workout.name);
-      });
-    });
-
+  // Muscle Group Distribution using TreeMap with real muscle groups from CSV (com porcentagens)
+  const muscleGroupTreeData = useMemo(() => {
     const muscleGroupCounts: { [key: string]: number } = {};
-    const workoutNameCounts: { [key: string]: number } = {};
-    const exerciseCounts: { [key: string]: number } = {};
-    let totalLoggedExercises = 0;
-
-    workoutLogs.forEach(log => {
-      totalLoggedExercises++;
-      const muscleGroup = exerciseToMuscleGroupMap.get(log.exercise_name);
-      if (muscleGroup) {
+    let totalExercises = 0;
+    
+    if (workoutLogs.length > 0 && exercisesCSV.length > 0) {
+      workoutLogs.forEach(log => {
+        const exerciseName = log.exercise_name.trim();
+        const normalizedName = normalizeExerciseName(exerciseName);
+        
+        // Try multiple matching strategies
+        const muscleGroup = exerciseToMuscleGroupMap.get(exerciseName) || 
+                           exerciseToMuscleGroupMap.get(exerciseName.toUpperCase()) ||
+                           exerciseToMuscleGroupMap.get(exerciseName.toLowerCase()) ||
+                           exerciseToMuscleGroupMap.get(normalizedName) ||
+                           'Outros';
+        
         muscleGroupCounts[muscleGroup] = (muscleGroupCounts[muscleGroup] || 0) + 1;
+        totalExercises++;
+      });
+    }
+
+    // Calcular porcentagens
+    const result = Object.entries(muscleGroupCounts).map(([name, value]) => ({
+      name,
+      value,
+      percentage: totalExercises > 0 ? ((value / totalExercises) * 100).toFixed(1) : '0',
+    }));
+
+    // Debug log
+    if (workoutLogs.length > 0 && exercisesCSV.length > 0 && result.length === 0) {
+      console.log('ReportsDashboard: No muscle groups found. Workout logs:', workoutLogs.slice(0, 3).map(l => l.exercise_name));
+      console.log('ReportsDashboard: Exercise map size:', exerciseToMuscleGroupMap.size);
+      console.log('ReportsDashboard: Sample exercises from CSV:', exercisesCSV.slice(0, 3).map(e => e.exercicio));
+      console.log('ReportsDashboard: Sample normalized workout log names:', workoutLogs.slice(0, 3).map(l => normalizeExerciseName(l.exercise_name)));
+    }
+
+    return result;
+  }, [workoutLogs, exerciseToMuscleGroupMap, exercisesCSV]);
+
+  // Stacked Bar Chart by Muscle Group - Get top exercises and their counts by group
+  // Cada grupo muscular mostra apenas os exercícios que pertencem àquele grupo
+  const { stackedBarData, topExercises } = useMemo(() => {
+    const exerciseCountsByGroup: { [muscleGroup: string]: { [exerciseName: string]: number } } = {};
+    
+    workoutLogs.forEach(log => {
+      const exerciseName = log.exercise_name.trim();
+      const normalizedName = normalizeExerciseName(exerciseName);
+      
+      // Try multiple matching strategies
+      const muscleGroup = exerciseToMuscleGroupMap.get(exerciseName) || 
+                         exerciseToMuscleGroupMap.get(exerciseName.toUpperCase()) ||
+                         exerciseToMuscleGroupMap.get(exerciseName.toLowerCase()) ||
+                         exerciseToMuscleGroupMap.get(normalizedName) ||
+                         'Outros';
+      
+      if (!exerciseCountsByGroup[muscleGroup]) {
+        exerciseCountsByGroup[muscleGroup] = {};
       }
-      const workoutName = exerciseToWorkoutNameMap.get(log.exercise_name);
-      if (workoutName) {
-        workoutNameCounts[workoutName] = (workoutNameCounts[workoutName] || 0) + 1;
-      }
-      exerciseCounts[log.exercise_name] = (exerciseCounts[log.exercise_name] || 0) + 1;
+      exerciseCountsByGroup[muscleGroup][log.exercise_name] = 
+        (exerciseCountsByGroup[muscleGroup][log.exercise_name] || 0) + 1;
     });
 
-    const muscleGroupPieData = Object.entries(muscleGroupCounts).map(([name, value]) => ({
-      name,
-      value,
-      percentage: totalLoggedExercises > 0 ? (value / totalLoggedExercises) * 100 : 0,
-    }));
+    // Coletar todos os exercícios únicos para criar as barras
+    const allUniqueExercises = new Set<string>();
+    Object.values(exerciseCountsByGroup).forEach(groupExercises => {
+      Object.keys(groupExercises).forEach(exercise => {
+        allUniqueExercises.add(exercise);
+      });
+    });
 
-    const workoutNamePieData = Object.entries(workoutNameCounts).map(([name, value]) => ({
-      name,
-      value,
-      percentage: totalLoggedExercises > 0 ? (value / totalLoggedExercises) * 100 : 0,
-    }));
+    // Para cada grupo, criar dataPoint com apenas os exercícios daquele grupo
+    const groups = Object.keys(exerciseCountsByGroup);
+    const data = groups.map(group => {
+      const dataPoint: any = { name: group };
+      
+      // Adicionar apenas os exercícios que pertencem a este grupo
+      allUniqueExercises.forEach(exerciseName => {
+        const count = exerciseCountsByGroup[group][exerciseName] || 0;
+        // Só adicionar se o exercício pertence a este grupo (count > 0)
+        if (count > 0) {
+          dataPoint[exerciseName] = count;
+        } else {
+          dataPoint[exerciseName] = 0; // Zero para manter a estrutura do gráfico
+        }
+      });
+      
+      return dataPoint;
+    });
 
-    const sortedExercises = Object.entries(exerciseCounts).sort(([, countA], [, countB]) => countB - countA);
-    const mostPerformedExercise = sortedExercises.length > 0 ? sortedExercises[0][0] : 'N/A';
+    return { 
+      stackedBarData: data, 
+      topExercises: Array.from(allUniqueExercises) // Todos os exercícios para a legenda
+    };
+  }, [workoutLogs, exerciseToMuscleGroupMap]);
 
-    return { muscleGroupDistribution: muscleGroupPieData, workoutNameDistribution: workoutNamePieData, mostPerformedExercise };
+  // Average workout time and rest time
+  const { avgWorkoutTime, avgRestTime } = useMemo(() => {
+    // Group logs by date to calculate workout duration
+    const workoutsByDate: { [date: string]: WorkoutLog[] } = {};
+    workoutLogs.forEach(log => {
+      if (!workoutsByDate[log.log_date]) {
+        workoutsByDate[log.log_date] = [];
+      }
+      workoutsByDate[log.log_date].push(log);
+    });
+
+    let totalWorkoutTime = 0;
+    let totalRestTime = 0;
+    let workoutCount = 0;
+    let restCount = 0; // Contador de séries com descanso
+
+    Object.values(workoutsByDate).forEach(logs => {
+      // If workout_duration_seconds is available, use it
+      const workoutDuration = logs[0]?.workout_duration_seconds;
+      if (workoutDuration) {
+        totalWorkoutTime += workoutDuration;
+        workoutCount++;
+      }
+
+      // Calculate rest time from performance JSON (tempos individuais de cada série)
+      logs.forEach(log => {
+        try {
+          const performance = typeof log.performance === 'string' ? JSON.parse(log.performance) : log.performance;
+          if (Array.isArray(performance)) {
+            performance.forEach((set: any) => {
+              if (set.rest_time_seconds && set.rest_time_seconds > 0) {
+                totalRestTime += set.rest_time_seconds;
+                restCount++;
+              }
+            });
+          }
+        } catch (e) {
+          // Se não conseguir parsear, usar rest_time_seconds do log (fallback)
+          if (log.rest_time_seconds && log.rest_time_seconds > 0) {
+            totalRestTime += log.rest_time_seconds;
+            restCount++;
+          }
+        }
+      });
+    });
+
+    return {
+      avgWorkoutTime: workoutCount > 0 ? Math.round(totalWorkoutTime / workoutCount / 60) : 0, // in minutes
+      avgRestTime: restCount > 0 ? Math.round(totalRestTime / restCount) : 0, // in seconds (média por série)
+    };
   }, [workoutLogs, allWorkouts]);
 
+  // Exercise statistics table
+  const exerciseStats = useMemo(() => {
+    const stats: {
+      [exerciseName: string]: {
+        count: number;
+        weights: number[]; // Array de todos os pesos registrados
+        times: number[]; // Array de todos os tempos de execução registrados
+        maxWeight: number; // Peso máximo registrado
+      }
+    } = {};
+
+    workoutLogs.forEach(log => {
+      if (!stats[log.exercise_name]) {
+        stats[log.exercise_name] = {
+          count: 0,
+          weights: [],
+          times: [],
+          maxWeight: 0,
+        };
+      }
+
+      stats[log.exercise_name].count++;
+
+      // Parse performance JSON to get weights and execution times
+      try {
+        const performance = typeof log.performance === 'string' ? JSON.parse(log.performance) : log.performance;
+        if (Array.isArray(performance)) {
+          performance.forEach((set: any) => {
+            // Coletar pesos
+            if (set.weight) {
+              const weight = parseFloat(set.weight);
+              if (!isNaN(weight) && weight > 0) {
+                stats[log.exercise_name].weights.push(weight);
+                if (weight > stats[log.exercise_name].maxWeight) {
+                  stats[log.exercise_name].maxWeight = weight;
+                }
+              }
+            }
+            // Coletar tempos de execução (não de descanso)
+            if (set.execution_time_seconds && set.execution_time_seconds > 0) {
+              stats[log.exercise_name].times.push(set.execution_time_seconds);
+            }
+          });
+        }
+      } catch (e) {
+        // Se não conseguir parsear, ignorar
+      }
+    });
+
+    // Criar mapa de PRs (Personal Records) para cada exercício
+    const prMap = new Map<string, number>();
+    personalRecords.forEach(pr => {
+      const currentMax = prMap.get(pr.exercise_name) || 0;
+      if (pr.pr_weight > currentMax) {
+        prMap.set(pr.exercise_name, pr.pr_weight);
+      }
+    });
+
+    return Object.entries(stats).map(([exerciseName, data]) => {
+      // Calcular peso médio: média de todos os pesos registrados
+      const avgWeight = data.weights.length > 0 
+        ? data.weights.reduce((sum, w) => sum + w, 0) / data.weights.length 
+        : 0;
+
+      // Calcular tempo médio: média de todos os tempos de execução (em minutos)
+      const avgTime = data.times.length > 0
+        ? (data.times.reduce((sum, t) => sum + t, 0) / data.times.length) / 60 // converter segundos para minutos
+        : 0;
+
+      // PR: usar o máximo do personal_records ou o máximo registrado nos logs
+      const pr = prMap.get(exerciseName) || data.maxWeight;
+
+      return {
+        exerciseName,
+        count: data.count,
+        avgWeight,
+        avgTime,
+        pr,
+        muscleGroup: (() => {
+          const normalizedName = normalizeExerciseName(exerciseName);
+          return exerciseToMuscleGroupMap.get(exerciseName) || 
+                 exerciseToMuscleGroupMap.get(exerciseName.toUpperCase()) ||
+                 exerciseToMuscleGroupMap.get(exerciseName.toLowerCase()) ||
+                 exerciseToMuscleGroupMap.get(normalizedName) ||
+                 'Outros';
+        })(),
+      };
+    });
+  }, [workoutLogs, allWorkouts, exerciseToMuscleGroupMap, personalRecords]);
+
+  // Obter lista única de grupos musculares para o filtro
+  const uniqueMuscleGroups = useMemo(() => {
+    const groups = new Set(exerciseStats.map(stat => stat.muscleGroup));
+    return Array.from(groups).sort();
+  }, [exerciseStats]);
+
+  // Filtrar e ordenar estatísticas de exercícios
+  const filteredExerciseStats = useMemo(() => {
+    let filtered = exerciseStats;
+    
+    if (muscleGroupFilter !== 'all') {
+      filtered = exerciseStats.filter(stat => stat.muscleGroup === muscleGroupFilter);
+    }
+    
+    return filtered.sort((a, b) => {
+      // Primeiro ordenar por Grupo Muscular, depois por count
+      if (a.muscleGroup !== b.muscleGroup) {
+        return a.muscleGroup.localeCompare(b.muscleGroup);
+      }
+      return b.count - a.count;
+    });
+  }, [exerciseStats, muscleGroupFilter]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -178,14 +447,11 @@ const ReportsDashboard = () => {
         const fromDate = dateRange.from.toISOString();
         const toDate = dateRange.to ? addDays(dateRange.to, 1).toISOString() : addDays(dateRange.from, 1).toISOString();
 
-        // If viewing a shared spreadsheet (not own), use profile.id (which will be the student's ID)
-        // Otherwise, use user.id (the full Google ID) to avoid truncation issues
         const isViewingSharedSpreadsheet = spreadsheetId && originalSpreadsheetId && spreadsheetId !== originalSpreadsheetId;
         const userId = (isViewingSharedSpreadsheet && profile?.id) ? String(profile.id) : String(user.id);
 
         const [
           weightData,
-          bioimpedanceData,
           nutritionData,
           workoutLogsData,
           personalRecordsData,
@@ -196,12 +462,6 @@ const ReportsDashboard = () => {
             gte: { column: 'created_at', value: fromDate },
             lt: { column: 'created_at', value: toDate },
             order: { column: 'created_at', ascending: true },
-          }),
-          select<BioimpedanceRecord>('bioimpedance_records', {
-            eq: { column: 'user_id', value: userId },
-            gte: { column: 'record_date', value: fromDate },
-            lt: { column: 'record_date', value: toDate },
-            order: { column: 'record_date', ascending: true },
           }),
           select<DailyNutritionLog>('daily_nutrition_logs', {
             eq: { column: 'user_id', value: userId },
@@ -225,11 +485,10 @@ const ReportsDashboard = () => {
         ]);
 
         setWeightHistory(weightData);
-        setBioimpedanceHistory(bioimpedanceData);
         setDailyNutritionLogs(nutritionData);
         setWorkoutLogs(workoutLogsData);
         setPersonalRecords(personalRecordsData);
-        // Parse exercises from JSON string to array for workouts
+        
         const parsedWorkouts = allWorkoutsData.map(workout => {
           if (workout.exercises && typeof workout.exercises === 'string') {
             try {
@@ -252,11 +511,11 @@ const ReportsDashboard = () => {
     if (!sessionLoading && !dbLoading && user && initialized) {
       fetchData();
     }
-  }, [user, profile, sessionLoading, dbLoading, initialized, dateRange, spreadsheetId]);
+  }, [user, profile, sessionLoading, dbLoading, initialized, dateRange, spreadsheetId, select]);
 
   if (sessionLoading || loading) {
     return (
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-2">
+      <div className="grid gap-4 sm:gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-2">
         <Skeleton className="h-[350px] w-full" />
         <Skeleton className="h-[350px] w-full" />
         <Skeleton className="h-[350px] w-full" />
@@ -278,12 +537,45 @@ const ReportsDashboard = () => {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-end mb-4">
-        <DatePickerWithRange date={dateRange} setDate={setDateRange} />
+    <div className="space-y-4 sm:space-y-6">
+      {/* Period Filter Buttons */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4">
+        <div className="flex gap-2 flex-wrap w-full sm:w-auto">
+          <Button
+            variant={periodFilter === 'thisMonth' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setPeriodFilter('thisMonth')}
+          >
+            Este Mês
+          </Button>
+          <Button
+            variant={periodFilter === 'lastMonth' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setPeriodFilter('lastMonth')}
+          >
+            Mês Passado
+          </Button>
+          <Button
+            variant={periodFilter === 'thisYear' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setPeriodFilter('thisYear')}
+          >
+            Este Ano
+          </Button>
+          <Button
+            variant={periodFilter === 'custom' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setPeriodFilter('custom')}
+          >
+            Período Personalizado
+          </Button>
+        </div>
+        {periodFilter === 'custom' && (
+          <DatePickerWithRange date={dateRange} setDate={setDateRange} />
+        )}
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-2">
+      <div className="grid gap-4 sm:gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-2">
         {/* Weight History Chart */}
         <Card>
           <CardHeader>
@@ -339,35 +631,6 @@ const ReportsDashboard = () => {
           </CardContent>
         </Card>
 
-        {/* Bioimpedance Trends Chart */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Tendências de Bioimpedância</CardTitle>
-            <CardDescription>Acompanhe as mudanças em suas métricas corporais.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {bioimpedanceChartData.length > 0 ? (
-              <div className="h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={bioimpedanceChartData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" />
-                    <YAxis yAxisId="left" label={{ value: 'Massa (kg) / IMC', angle: -90, position: 'insideLeft' }} />
-                    <YAxis yAxisId="right" orientation="right" label={{ value: 'Percentual (%)', angle: 90, position: 'insideRight' }} />
-                    <Tooltip />
-                    <Legend />
-                    <Line yAxisId="right" type="monotone" dataKey="body_fat_percentage" stroke="#82ca9d" name="Gordura Corporal (%)" />
-                    <Line yAxisId="left" type="monotone" dataKey="muscle_mass_kg" stroke="#ffc658" name="Massa Muscular (kg)" />
-                    <Line yAxisId="left" type="monotone" dataKey="bmi" stroke="#8884d8" name="IMC" />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            ) : (
-              <p className="text-center text-muted-foreground">Nenhum dado de bioimpedância para exibir.</p>
-            )}
-          </CardContent>
-        </Card>
-
         {/* Workout Frequency Chart */}
         <Card>
           <CardHeader>
@@ -394,129 +657,220 @@ const ReportsDashboard = () => {
           </CardContent>
         </Card>
 
-        {/* Strength Evolution Chart (Personal Records) */}
+
+        {/* Muscle Group Horizontal Bar Chart */}
         <Card>
           <CardHeader>
-            <CardTitle>Evolução de Força (Recordes Pessoais)</CardTitle>
-            <CardDescription>Acompanhe seus recordes pessoais ao longo do tempo.</CardDescription>
+            <CardTitle>Exercícios por Grupo Muscular Histograma</CardTitle>
+            <CardDescription>Distribuição dos exercícios logados por grupo muscular real.</CardDescription>
           </CardHeader>
-          <CardContent>
-            {Object.keys(prChartData).length > 0 ? (
-              <div className="h-[300px]">
+          <CardContent className="p-2 sm:p-6">
+            {workoutLogs.length === 0 ? (
+              <div className="text-center text-muted-foreground space-y-2">
+                <p>Nenhum exercício logado no período selecionado.</p>
+                <p className="text-sm">Complete treinos para ver a distribuição por grupo muscular.</p>
+              </div>
+            ) : exercisesCSV.length === 0 ? (
+              <div className="text-center text-muted-foreground space-y-2">
+                <p>Carregando dados de exercícios...</p>
+              </div>
+            ) : muscleGroupTreeData.length > 0 ? (
+              <div className="h-[400px] w-[calc(100vw-2rem)] sm:w-full -ml-2 sm:ml-0">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart>
+                  <BarChart
+                    data={muscleGroupTreeData}
+                    layout="vertical"
+                    margin={{ top: 5, right: 5, left: 5, bottom: 5 }}
+                  >
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" type="category" allowDuplicatedCategory={true} />
-                    <YAxis label={{ value: 'Peso (kg)', angle: -90, position: 'insideLeft' }} />
-                    <Tooltip />
-                    <Legend />
-                    {Object.entries(prChartData).map(([exerciseName, data], index) => (
-                      <Line
-                        key={exerciseName}
-                        type="monotone"
-                        dataKey="weight"
-                        data={data}
-                        name={exerciseName}
-                        stroke={COLORS[index % COLORS.length]}
-                        activeDot={{ r: 8 }}
-                      />
-                    ))}
-                  </LineChart>
+                    <XAxis 
+                      type="number" 
+                      label={{ value: 'Quantidade', position: 'insideBottom', offset: -5 }}
+                      tick={{ fontSize: 10 }}
+                    />
+                    <YAxis 
+                      type="category" 
+                      dataKey="name" 
+                      width={80}
+                      tick={{ fontSize: 13 }}
+                      interval={0}
+                    />
+                    <Tooltip 
+                      content={({ active, payload }) => {
+                        if (active && payload && payload.length) {
+                          const data = payload[0].payload;
+                          return (
+                            <div className="bg-background border rounded-lg p-3 shadow-lg">
+                              <p className="font-semibold mb-1">{data.name}</p>
+                              <p className="text-sm">Exercícios: {data.value}</p>
+                              <p className="text-sm">Porcentagem: {data.percentage}%</p>
+                            </div>
+                          );
+                        }
+                        return null;
+                      }}
+                    />
+                    <Bar dataKey="value" fill="#8884d8" radius={[0, 4, 4, 0]}>
+                      {muscleGroupTreeData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Bar>
+                  </BarChart>
                 </ResponsiveContainer>
               </div>
             ) : (
-              <p className="text-center text-muted-foreground">Nenhum recorde pessoal para exibir.</p>
+              <div className="text-center text-muted-foreground space-y-2">
+                <p>Nenhum exercício logado encontrado nos grupos musculares.</p>
+                <p className="text-sm">Verifique se os nomes dos exercícios correspondem aos do arquivo CSV.</p>
+              </div>
             )}
           </CardContent>
         </Card>
 
-        {/* Workouts per Muscle Group Chart */}
+        {/* Stacked Bar Chart by Muscle Group */}
         <Card>
           <CardHeader>
             <CardTitle>Exercícios por Grupo Muscular</CardTitle>
-            <CardDescription>Distribuição dos exercícios logados por grupo muscular.</CardDescription>
+            <CardDescription>Distribuição de exercícios realizados por grupo muscular (top 10 exercícios por grupo).</CardDescription>
           </CardHeader>
           <CardContent>
-            {muscleGroupDistribution.length > 0 ? (
-              <div className="h-[300px]">
+            {stackedBarData.length > 0 ? (
+              <div className="h-[300px] w-full max-w-[95vw]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={muscleGroupDistribution}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="value"
-                      label={({ name, percentage }) => `${name} (${percentage.toFixed(1)}%)`}
-                    >
-                      {muscleGroupDistribution.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip formatter={(value: number, name: string, props) => [`${value} logs (${props.payload.percentage.toFixed(1)}%)`, name]} />
-                    <Legend />
-                  </PieChart>
+                  <BarChart data={stackedBarData} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" />
+                    <YAxis />
+                    <Tooltip 
+                      content={({ active, payload, label }) => {
+                        if (active && payload && payload.length) {
+                          // Filtrar apenas os exercícios que pertencem a este grupo (valores > 0)
+                          const filteredPayload = payload.filter((item: any) => item.value > 0);
+                          return (
+                            <div className="bg-background border rounded-lg p-3 shadow-lg">
+                              <p className="font-semibold mb-2">{label}</p>
+                              {filteredPayload.map((item: any, index: number) => (
+                                <p key={index} style={{ color: item.color }} className="text-sm">
+                                  {item.name}: {item.value}
+                                </p>
+                              ))}
+                            </div>
+                          );
+                        }
+                        return null;
+                      }}
+                    />
+                    {topExercises.map((exerciseName, index) => (
+                      <Bar
+                        key={exerciseName}
+                        dataKey={exerciseName}
+                        stackId="a"
+                        fill={COLORS[index % COLORS.length]}
+                        name={exerciseName}
+                      />
+                    ))}
+                  </BarChart>
                 </ResponsiveContainer>
               </div>
             ) : (
-              <p className="text-center text-muted-foreground">Nenhum exercício logado para exibir por grupo muscular.</p>
+              <p className="text-center text-muted-foreground">Nenhum exercício logado para exibir.</p>
             )}
           </CardContent>
         </Card>
+      </div>
 
-        {/* Percentage of Total Logged Exercises per Workout Name Chart */}
+      {/* Average Workout Time and Rest Time Cards */}
+      <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
         <Card>
-          <CardHeader>
-            <CardTitle>Distribuição de Exercícios por Treino</CardTitle>
-            <CardDescription>Percentual de exercícios logados para cada treino.</CardDescription>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Tempo Médio de Treino</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            {workoutNameDistribution.length > 0 ? (
-              <div className="h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={workoutNameDistribution}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="value"
-                      label={({ name, percentage }) => `${name} (${percentage.toFixed(1)}%)`}
-                    >
-                      {workoutNameDistribution.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip formatter={(value: number, name: string, props) => [`${value} logs (${props.payload.percentage.toFixed(1)}%)`, name]} />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            ) : (
-              <p className="text-center text-muted-foreground">Nenhum exercício logado para exibir por treino.</p>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Most Performed Exercise Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Exercício Mais Realizado</CardTitle>
-            <CardDescription>O exercício mais frequente no período selecionado.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{mostPerformedExercise}</div>
+            <div className="text-2xl font-bold">{avgWorkoutTime} min</div>
             <p className="text-xs text-muted-foreground">
-              Baseado nos exercícios logados.
+              Baseado nos treinos realizados no período
             </p>
           </CardContent>
         </Card>
 
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Tempo Médio de Descanso</CardTitle>
+            <Pause className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{avgRestTime} s</div>
+            <p className="text-xs text-muted-foreground">
+              Tempo médio de descanso entre exercícios
+            </p>
+          </CardContent>
+        </Card>
       </div>
+
+      {/* Exercise Statistics Table */}
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0">
+            <div>
+              <CardTitle>Estatísticas de Exercícios</CardTitle>
+              <CardDescription>Detalhes dos exercícios realizados no período selecionado.</CardDescription>
+            </div>
+            {exerciseStats.length > 0 && (
+              <div className="flex items-center gap-2">
+                <Filter className="h-4 w-4 text-muted-foreground" />
+                <Select value={muscleGroupFilter} onValueChange={setMuscleGroupFilter}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Filtrar por grupo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os Grupos</SelectItem>
+                    {uniqueMuscleGroups.map((group) => (
+                      <SelectItem key={group} value={group}>{group}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {filteredExerciseStats.length > 0 ? (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Exercício</TableHead>
+                    <TableHead>Grupo Muscular</TableHead>
+                    <TableHead className="text-right">Quantidade de Vezes</TableHead>
+                    <TableHead className="text-right">Peso Médio (kg)</TableHead>
+                    <TableHead className="text-right">Tempo Médio (min)</TableHead>
+                    <TableHead className="text-right">PR (kg)</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredExerciseStats.map((stat, index) => (
+                    <TableRow key={index}>
+                      <TableCell className="font-medium">{stat.exerciseName}</TableCell>
+                      <TableCell>{stat.muscleGroup}</TableCell>
+                      <TableCell className="text-right">{stat.count}</TableCell>
+                      <TableCell className="text-right">{stat.avgWeight > 0 ? stat.avgWeight.toFixed(1) : '-'}</TableCell>
+                      <TableCell className="text-right">{stat.avgTime > 0 ? stat.avgTime.toFixed(1) : '-'}</TableCell>
+                      <TableCell className="text-right font-bold">{stat.pr > 0 ? stat.pr.toFixed(1) : '-'}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          ) : (
+            <p className="text-center text-muted-foreground">
+              {muscleGroupFilter !== 'all' 
+                ? 'Nenhum exercício encontrado para o grupo muscular selecionado.' 
+                : 'Nenhum exercício realizado no período selecionado.'}
+            </p>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 };

@@ -22,6 +22,10 @@ export type Workout = {
   muscle_group: string;
   exercises: Exercise[];
   created_at: string;
+  start_date?: string;
+  expiration_date?: string;
+  status?: 'ativo' | 'expirado' | 'substituído';
+  adaptation_period_days?: number;
 };
 
 const WorkoutsPage = () => {
@@ -72,17 +76,22 @@ const WorkoutsPage = () => {
   }, [initialized, dbLoading, profile, user, spreadsheetId]);
 
   return (
-    <div className="container mx-auto p-4">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Treinos</h1>
-        <div className="flex gap-2">
-          <Button variant="outline" asChild>
+    <div className="container mx-auto p-2 sm:p-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0 mb-4 sm:mb-6">
+        <h1 className="text-2xl sm:text-3xl font-bold">Treinos</h1>
+        <div className="flex gap-2 w-full sm:w-auto">
+          <Button variant="outline" asChild size="sm" className="sm:hidden">
+            <NavLink to="/dashboard">
+              <Home className="h-4 w-4" />
+            </NavLink>
+          </Button>
+          <Button variant="outline" asChild className="hidden sm:flex">
             <NavLink to="/dashboard">
               <Home className="mr-2 h-4 w-4" /> Dashboard
             </NavLink>
           </Button>
           {(profile?.role === 'admin' || profile?.role === 'student' || profile?.role === 'personal') && (
-            <Button onClick={() => setIsDialogOpen(true)}>
+            <Button onClick={() => setIsDialogOpen(true)} size="sm" className="flex-1 sm:flex-initial">
               <PlusCircle className="mr-2 h-4 w-4" /> Adicionar Treino
             </Button>
           )}

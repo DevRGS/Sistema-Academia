@@ -260,11 +260,100 @@ const { select, insert, delete: deleteRow, initialized, spreadsheetId, originalS
 
   // Watch for initialized state to load profile (only once)
   useEffect(() => {
-    if (initialized && getAccessToken() && !profileLoadAttempted) {
+    if (initialized && getAccessToken() && !profileLoadAttempted && !user) {
+      // Só carregar automaticamente se não tiver usuário ainda (inicialização normal)
       setProfileLoadAttempted(true);
       loadUserProfile();
+    } else if (initialized && getAccessToken() && user && !profileLoadAttempted) {
+      // Se já tem usuário mas banco acabou de inicializar, recarregar perfil
+      setProfileLoadAttempted(true);
+      loadUserProfile(true);
     }
-  }, [initialized, profileLoadAttempted]);
+  }, [initialized, profileLoadAttempted, user]);
+
+  // Listen for user login event to reload profile when database initializes
+  useEffect(() => {
+    const handleUserLoggedIn = async () => {
+      console.log('User logged in event received');
+      // O perfil já foi carregado em loadUserProfileWithToken
+      // Este listener é para recarregar quando o banco inicializar
+    };
+    
+    const handleDatabaseInitialized = async () => {
+      if (getAccessToken() && user) {
+        console.log('Database initialized event received, loading profile...');
+        // Aguardar um pouco para garantir que o banco está totalmente inicializado
+        await new Promise(resolve => setTimeout(resolve, 800));
+        
+        // Forçar recarregamento do perfil diretamente
+        try {
+          console.log('Loading profile after database initialization...');
+          const userData = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+            headers: {
+              Authorization: `Bearer ${getAccessToken()}`,
+            },
+          }).then(res => res.json());
+
+          // Buscar perfil do banco
+          let profiles = await select<Profile & { email?: string }>('profiles', { 
+            eq: { column: 'id', value: userData.id } 
+          });
+          
+          if (profiles.length === 0 && userData.email) {
+            profiles = await select<Profile & { email?: string }>('profiles', { 
+              eq: { column: 'email', value: userData.email } 
+            });
+          }
+
+          if (profiles.length > 0) {
+            const profileData = profiles[profiles.length - 1];
+            
+            // Parse locomotion_days if it's a string
+            if (profileData.locomotion_days && typeof profileData.locomotion_days === 'string') {
+              try {
+                profileData.locomotion_days = JSON.parse(profileData.locomotion_days);
+              } catch {
+                profileData.locomotion_days = [];
+              }
+            }
+
+            const completeProfile: Profile = {
+              id: profileData.id || userData.id,
+              first_name: profileData.first_name || userData.given_name || '',
+              last_name: profileData.last_name || userData.family_name || '',
+              role: profileData.role || 'student',
+              email: profileData.email || userData.email,
+              height_cm: profileData.height_cm,
+              weight_kg: profileData.weight_kg,
+              sex: profileData.sex,
+              age: profileData.age,
+              routine: profileData.routine,
+              locomotion_type: profileData.locomotion_type,
+              locomotion_distance_km: profileData.locomotion_distance_km,
+              locomotion_time_minutes: profileData.locomotion_time_minutes,
+              locomotion_days: profileData.locomotion_days,
+            };
+            
+            console.log('Profile loaded after database initialization:', completeProfile);
+            setProfile(completeProfile);
+            
+            // Disparar evento para atualizar componentes
+            window.dispatchEvent(new CustomEvent('profileUpdated'));
+          }
+        } catch (error) {
+          console.error('Error loading profile after database initialization:', error);
+        }
+      }
+    };
+    
+    window.addEventListener('userLoggedIn', handleUserLoggedIn);
+    window.addEventListener('databaseInitialized', handleDatabaseInitialized);
+    
+    return () => {
+      window.removeEventListener('userLoggedIn', handleUserLoggedIn);
+      window.removeEventListener('databaseInitialized', handleDatabaseInitialized);
+    };
+  }, [initialized, user, profileLoadAttempted]);
 
   // Watch for spreadsheet changes to load student profile when viewing shared spreadsheet
   // Only trigger when spreadsheetId actually changes (not on every render)
@@ -514,16 +603,35 @@ const { select, insert, delete: deleteRow, initialized, spreadsheetId, originalS
         // Load user profile with the token we just received
         console.log('Loading user profile...');
         await loadUserProfileWithToken(token);
-        console.log('User profile loaded, navigating...');
+        console.log('User profile loaded');
+        
+        // Aguardar um pouco para garantir que o token está sincronizado
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        // Disparar evento para forçar recarregamento do perfil quando banco inicializar
+        window.dispatchEvent(new CustomEvent('userLoggedIn', { detail: { token } }));
+        
+        // Aguardar um pouco mais para o banco começar a inicializar
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        console.log('Navigating to dashboard...');
+        // Usar navigate do React Router para manter o estado
         navigate('/dashboard');
+        
+        // Forçar recarregamento do perfil quando banco estiver pronto
+        // Isso será feito pelo listener de 'userLoggedIn'
+        
+        // Garantir que loading seja false após navegação
+        setTimeout(() => {
+          setLoading(false);
+        }, 1000);
       } else {
         throw new Error('No access token received');
       }
     } catch (err: any) {
       console.error('Error signing in:', err);
-      throw err;
-    } finally {
       setLoading(false);
+      throw err;
     }
   };
   
@@ -672,9 +780,21 @@ const { select, insert, delete: deleteRow, initialized, spreadsheetId, originalS
     isAuthenticated: !!user && !!getAccessToken(),
   };
 
+  // Garantir que loading seja false após um tempo máximo
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (loading) {
+        console.warn('Loading timeout, setting loading to false');
+        setLoading(false);
+      }
+    }, 15000); // 15 segundos máximo
+
+    return () => clearTimeout(timeout);
+  }, [loading]);
+
   return (
     <SessionContext.Provider value={value}>
-      {!loading && children}
+      {children}
     </SessionContext.Provider>
   );
 };

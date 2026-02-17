@@ -15,6 +15,23 @@ import { Skeleton } from '../ui/skeleton';
 import ProfileHistoryDialog from './ProfileHistoryDialog';
 import { History } from 'lucide-react';
 
+type Profile = {
+  id: string;
+  first_name: string;
+  last_name: string;
+  role: 'admin' | 'student' | 'personal';
+  email?: string;
+  height_cm?: number | string;
+  weight_kg?: number | string;
+  sex?: string;
+  age?: number | string;
+  routine?: string;
+  locomotion_type?: string;
+  locomotion_distance_km?: number | string;
+  locomotion_time_minutes?: number | string;
+  locomotion_days?: string[] | string;
+};
+
 const daysOfWeek = [
   { id: 'segunda', label: 'Seg' },
   { id: 'terca', label: 'Ter' },
@@ -41,6 +58,7 @@ type StudentFormData = z.infer<typeof studentDataSchema>;
 
 const StudentDataForm = () => {
   const { user, profile, loading } = useSession();
+  const { update, insert, select, initialized, spreadsheetId, originalSpreadsheetId } = useGoogleSheetsDB();
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const form = useForm<StudentFormData>({
     resolver: zodResolver(studentDataSchema),
@@ -61,36 +79,83 @@ const StudentDataForm = () => {
   const showLocomotionDetails = locomotionType && ['Caminha', 'Corre', 'Bicicleta'].includes(locomotionType);
 
   useEffect(() => {
-    if (profile) {
-      console.log('Loading profile data into form:', profile);
-      // Parse locomotion_days if it's a string (from Google Sheets)
-      let locomotionDays = profile.locomotion_days || [];
-      if (typeof locomotionDays === 'string') {
-        try {
-          locomotionDays = JSON.parse(locomotionDays);
-        } catch {
-          locomotionDays = [];
-        }
+    const loadProfileData = async () => {
+      if (!initialized || !user) {
+        return;
       }
 
-      const formData = {
-        height_cm: profile.height_cm ? Number(profile.height_cm) : null,
-        weight_kg: profile.weight_kg ? Number(profile.weight_kg) : null,
-        sex: profile.sex || null,
-        age: profile.age ? Number(profile.age) : null,
-        routine: profile.routine || null,
-        locomotion_type: profile.locomotion_type || null,
-        locomotion_distance_km: profile.locomotion_distance_km ? Number(profile.locomotion_distance_km) : null,
-        locomotion_time_minutes: profile.locomotion_time_minutes ? Number(profile.locomotion_time_minutes) : null,
-        locomotion_days: Array.isArray(locomotionDays) ? locomotionDays : [],
-      };
+      console.log('StudentDataForm: Loading profile data, profile from context:', profile);
       
-      console.log('Form data to set:', formData);
-      form.reset(formData);
-    }
-  }, [profile, form]);
+      try {
+        // Buscar perfil diretamente do banco para garantir dados atualizados
+        const isViewingSharedSpreadsheet = spreadsheetId && originalSpreadsheetId && spreadsheetId !== originalSpreadsheetId;
+        const userId = (isViewingSharedSpreadsheet && profile?.id) ? String(profile.id) : String(user.id);
+        
+        const profilesFromDB = await select<Profile>('profiles', {
+          eq: { column: 'id', value: userId }
+        });
 
-  const { update, insert, select, initialized } = useGoogleSheetsDB();
+        const profileData = profilesFromDB.length > 0 ? profilesFromDB[0] : profile;
+        
+        if (!profileData) {
+          console.log('StudentDataForm: No profile data found');
+          return;
+        }
+
+        console.log('StudentDataForm: Profile data from DB:', profileData);
+        
+        // Buscar peso mais recente do histórico (se houver)
+        let latestWeightFromHistory: number | null = null;
+        try {
+          const weightHistory = await select<{ weight_kg: number; created_at: string }>('weight_history', {
+            eq: { column: 'user_id', value: userId },
+            order: { column: 'created_at', ascending: false },
+          });
+          
+          if (weightHistory && weightHistory.length > 0) {
+            latestWeightFromHistory = weightHistory[0].weight_kg;
+            console.log('StudentDataForm: Latest weight from history:', latestWeightFromHistory);
+          }
+        } catch (error) {
+          console.warn('StudentDataForm: Error loading weight history:', error);
+        }
+
+        // Parse locomotion_days if it's a string (from Google Sheets)
+        let locomotionDays = profileData.locomotion_days || [];
+        if (typeof locomotionDays === 'string') {
+          try {
+            locomotionDays = JSON.parse(locomotionDays);
+          } catch {
+            locomotionDays = [];
+          }
+        }
+
+        // Usar peso do histórico se disponível, senão usar do perfil
+        const weightToUse = latestWeightFromHistory !== null 
+          ? latestWeightFromHistory 
+          : (profileData.weight_kg ? Number(profileData.weight_kg) : null);
+
+        const formData = {
+          height_cm: profileData.height_cm ? Number(profileData.height_cm) : null,
+          weight_kg: weightToUse,
+          sex: profileData.sex || null,
+          age: profileData.age ? Number(profileData.age) : null,
+          routine: profileData.routine || null,
+          locomotion_type: profileData.locomotion_type || null,
+          locomotion_distance_km: profileData.locomotion_distance_km ? Number(profileData.locomotion_distance_km) : null,
+          locomotion_time_minutes: profileData.locomotion_time_minutes ? Number(profileData.locomotion_time_minutes) : null,
+          locomotion_days: Array.isArray(locomotionDays) ? locomotionDays : [],
+        };
+        
+        console.log('StudentDataForm: Form data to set:', formData);
+        form.reset(formData);
+      } catch (error) {
+        console.error('StudentDataForm: Error loading profile data:', error);
+      }
+    };
+
+    loadProfileData();
+  }, [initialized, user, profile, spreadsheetId, originalSpreadsheetId, select, form]);
 
   const onSubmit = async (data: StudentFormData) => {
     if (!user || !initialized) return;
@@ -114,6 +179,45 @@ const StudentDataForm = () => {
         });
       }
       
+      // Se o peso foi atualizado, adicionar ao histórico de peso também (sincronização bilateral)
+      if (data.weight_kg !== null && data.weight_kg !== undefined) {
+        try {
+          // Verificar se já existe um registro de peso para hoje
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const tomorrow = new Date(today);
+          tomorrow.setDate(tomorrow.getDate() + 1);
+
+          const todayWeight = await select<{ id: string }>('weight_history', {
+            eq: { column: 'user_id', value: user.id },
+            gte: { column: 'created_at', value: today.toISOString() },
+            lt: { column: 'created_at', value: tomorrow.toISOString() },
+          });
+
+          if (todayWeight.length === 0) {
+            // Adicionar ao histórico apenas se não houver registro de hoje
+            await insert('weight_history', {
+              user_id: String(user.id),
+              weight_kg: data.weight_kg,
+              created_at: new Date().toISOString(),
+            });
+            console.log('StudentDataForm: Peso adicionado ao histórico');
+          } else {
+            // Atualizar registro de hoje se já existir
+            await update('weight_history', {
+              weight_kg: data.weight_kg,
+            }, {
+              column: 'id',
+              value: todayWeight[0].id
+            });
+            console.log('StudentDataForm: Peso atualizado no histórico');
+          }
+        } catch (weightError) {
+          console.error('StudentDataForm: Erro ao sincronizar peso no histórico:', weightError);
+          // Não bloquear se falhar, o perfil já foi atualizado
+        }
+      }
+      
       // Save to history - ensure user_id is saved as string to avoid truncation
       await insert('profile_history', {
         id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
@@ -127,6 +231,11 @@ const StudentDataForm = () => {
       if (updatedProfiles.length > 0) {
         // Trigger profile reload in SessionContext
         window.dispatchEvent(new CustomEvent('profileUpdated'));
+        
+        // Se o peso foi atualizado, disparar evento para atualizar WeightCard
+        if (data.weight_kg !== null && data.weight_kg !== undefined) {
+          window.dispatchEvent(new CustomEvent('weightAdded'));
+        }
       }
       
       showSuccess('Dados salvos com sucesso!');

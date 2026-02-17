@@ -65,14 +65,19 @@ const BaseWorkoutGenerator = ({ onWorkoutsGenerated }: { onWorkoutsGenerated: ()
       const isViewingSharedSpreadsheet = spreadsheetId && originalSpreadsheetId && spreadsheetId !== originalSpreadsheetId;
       const userId = (isViewingSharedSpreadsheet && profile?.id) ? String(profile.id) : String(user.id);
       
+      // Importar função para inicializar treinos com datas
+      const { initializeWorkoutWithDates, DEFAULT_ADAPTATION_PERIOD_DAYS } = await import('@/utils/workoutExpirationService');
+      
       for (const workout of workouts) {
-        await insert('workouts', {
+        const workoutWithDates = initializeWorkoutWithDates({
           user_id: userId,
           name: workout.name,
           muscle_group: workout.muscle_group,
           exercises: JSON.stringify(workout.exercises),
           created_at: new Date().toISOString(),
-        });
+        }, DEFAULT_ADAPTATION_PERIOD_DAYS);
+        
+        await insert('workouts', workoutWithDates);
       }
       
       showSuccess(`${workouts.length} treinos gerados com sucesso!`);

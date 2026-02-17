@@ -1,6 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { CircleUser, Menu, Package, Search, Dumbbell, Home, LineChart, Utensils, Users, Scale, BarChart3, UserCheck, ChevronDown } from 'lucide-react'; // Import BarChart3 icon
+import { CircleUser, Menu, Package, Dumbbell, Home, Utensils, Users, Scale, BarChart3, UserCheck, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -10,7 +10,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Input } from '@/components/ui/input';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { useSession } from '@/contexts/SessionContext';
 import { useGoogleSheetsDB } from '@/hooks/useGoogleSheetsDB';
@@ -38,8 +37,7 @@ const Header = () => {
     { to: "/diet", icon: <Utensils className="h-5 w-5" />, label: "Dieta", adminOnly: false },
     { to: "/workouts", icon: <Dumbbell className="h-5 w-5" />, label: "Treinos", adminOnly: false },
     { to: "/weight-tracking", icon: <Scale className="h-5 w-5" />, label: "Peso", adminOnly: false },
-    { to: "/bioimpedance", icon: <LineChart className="h-5 w-5" />, label: "Bioimpedância", adminOnly: false },
-    { to: "/reports", icon: <BarChart3 className="h-5 w-5" />, label: "Relatórios", adminOnly: false }, // New nav item
+    { to: "/reports", icon: <BarChart3 className="h-5 w-5" />, label: "Relatórios", adminOnly: false },
     { to: "/students", icon: <Users className="h-5 w-5" />, label: "Alunos", adminOnly: true },
   ];
 
@@ -132,7 +130,7 @@ const Header = () => {
   };
 
   return (
-    <header className="flex h-14 items-center gap-4 border-b bg-muted/40 px-4 lg:h-[60px] lg:px-6">
+    <header className="flex h-14 items-center gap-2 sm:gap-4 border-b border-border bg-card/50 backdrop-blur-sm px-2 sm:px-4 lg:h-[60px] lg:px-6 shadow-sm">
       <Sheet>
         <SheetTrigger asChild>
           <Button variant="outline" size="icon" className="shrink-0 md:hidden">
@@ -151,8 +149,8 @@ const Header = () => {
                 key={item.to}
                 to={item.to}
                 className={({ isActive }) =>
-                  `flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground ${
-                    isActive ? 'bg-muted text-foreground' : ''
+                  `flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground transition-all duration-300 hover:text-foreground hover:bg-accent ${
+                    isActive ? 'bg-primary/20 text-primary font-semibold' : ''
                   }`
                 }
               >
@@ -163,43 +161,31 @@ const Header = () => {
           </nav>
         </SheetContent>
       </Sheet>
-      <div className="w-full flex-1">
-        <form>
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              type="search"
-              placeholder="Search..."
-              className="w-full appearance-none bg-background pl-8 shadow-none md:w-2/3 lg:w-1/3"
-            />
-          </div>
-        </form>
-      </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-1 justify-end">
         {/* Shared Spreadsheets Dropdown - shown for any user with shared spreadsheets */}
         {initialized && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="gap-2">
+              <Button variant="outline" className="gap-1 sm:gap-2 text-xs sm:text-sm">
                 {loadingStudents ? (
-                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-4 w-16 sm:w-24" />
                 ) : sharedStudents.length > 0 ? (
                   <>
-                    <UserCheck className="h-4 w-4" />
-                    <span className="hidden md:inline">
+                    <UserCheck className="h-3 w-3 sm:h-4 sm:w-4" />
+                    <span className="hidden sm:inline truncate max-w-[120px] md:max-w-none">
                       {currentStudentName ? currentStudentName : 'Minha Planilha'}
                     </span>
-                    <ChevronDown className="h-4 w-4" />
+                    <ChevronDown className="h-3 w-3 sm:h-4 sm:w-4" />
                   </>
                 ) : (
                   <>
-                    <Users className="h-4 w-4" />
-                    <span className="hidden md:inline">Minha Planilha</span>
+                    <Users className="h-3 w-3 sm:h-4 sm:w-4" />
+                    <span className="hidden sm:inline">Minha Planilha</span>
                   </>
                 )}
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-64">
+            <DropdownMenuContent align="end" className="w-56 sm:w-64">
               <DropdownMenuLabel>Planilhas Compartilhadas</DropdownMenuLabel>
               <DropdownMenuSeparator />
               {loadingStudents ? (
@@ -251,10 +237,10 @@ const Header = () => {
         
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="secondary" size="icon" className="rounded-full">
-              <Avatar className="h-8 w-8">
-                <AvatarImage src="#" alt="User avatar" />
-                <AvatarFallback>{getInitials(profile?.first_name, profile?.last_name)}</AvatarFallback>
+            <Button variant="secondary" size="icon" className="rounded-full h-8 w-8 sm:h-10 sm:w-10">
+              <Avatar className="h-7 w-7 sm:h-8 sm:w-8">
+                <AvatarImage src={user?.picture || undefined} alt="User avatar" />
+                <AvatarFallback className="text-xs sm:text-sm">{getInitials(profile?.first_name, profile?.last_name)}</AvatarFallback>
               </Avatar>
               <span className="sr-only">Toggle user menu</span>
             </Button>

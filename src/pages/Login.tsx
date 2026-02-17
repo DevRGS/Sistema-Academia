@@ -33,16 +33,18 @@ const Login = () => {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-100">
-      <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-lg shadow-md">
-        <h2 className="text-2xl font-bold text-center">Bem-vindo ao Black Academy</h2>
-        <p className="text-center text-gray-600">
-          Faça login com sua conta Google para continuar
-        </p>
+    <div className="flex min-h-screen items-center justify-center bg-background p-4">
+      <div className="w-full max-w-md p-6 sm:p-8 space-y-6 sm:space-y-8 bg-card rounded-lg border border-border shadow-xl animate-scale-in">
+        <div className="text-center space-y-2">
+          <h2 className="text-3xl font-bold text-foreground">Bem-vindo ao Black Academy</h2>
+          <p className="text-center text-muted-foreground">
+            Faça login com sua conta Google para continuar
+          </p>
+        </div>
         <Button
           onClick={handleSignIn}
           disabled={loading || signingIn}
-          className="w-full"
+          className="w-full gradient-primary"
           size="lg"
         >
           {signingIn ? 'Entrando...' : 'Entrar com Google'}

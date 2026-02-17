@@ -126,17 +126,22 @@ const DietPage = () => {
 
   if (dietPlan.length === 0) {
     return (
-      <div className="space-y-6">
-        <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold">{isPersonal ? 'Dieta do Aluno' : 'Minha Dieta'}</h1>
-          <div className="flex gap-2">
-            <Button variant="outline" asChild>
+      <div className="space-y-4 sm:space-y-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0">
+          <h1 className="text-2xl sm:text-3xl font-bold">{isPersonal ? 'Dieta do Aluno' : 'Minha Dieta'}</h1>
+          <div className="flex gap-2 w-full sm:w-auto">
+            <Button variant="outline" asChild size="sm" className="sm:hidden">
+              <NavLink to="/dashboard">
+                <Home className="h-4 w-4" />
+              </NavLink>
+            </Button>
+            <Button variant="outline" asChild className="hidden sm:flex">
               <NavLink to="/dashboard">
                 <Home className="mr-2 h-4 w-4" /> Dashboard
               </NavLink>
             </Button>
             {(isStudent || isPersonal) && user && (
-              <Button onClick={() => setIsAddMealDialogOpen(true)}>
+              <Button onClick={() => setIsAddMealDialogOpen(true)} size="sm" className="flex-1 sm:flex-initial">
                 <PlusCircle className="mr-2 h-4 w-4" /> Adicionar Refeição
               </Button>
             )}
@@ -163,23 +168,28 @@ const DietPage = () => {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">{isPersonal ? 'Dieta do Aluno' : 'Minha Dieta'}</h1>
-        <div className="flex gap-2">
-          <Button variant="outline" asChild>
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0">
+        <h1 className="text-2xl sm:text-3xl font-bold">{isPersonal ? 'Dieta do Aluno' : 'Minha Dieta'}</h1>
+        <div className="flex gap-2 w-full sm:w-auto">
+          <Button variant="outline" asChild size="sm" className="sm:hidden">
+            <NavLink to="/dashboard">
+              <Home className="h-4 w-4" />
+            </NavLink>
+          </Button>
+          <Button variant="outline" asChild className="hidden sm:flex">
             <NavLink to="/dashboard">
               <Home className="mr-2 h-4 w-4" /> Dashboard
             </NavLink>
           </Button>
           {(isStudent || isPersonal) && user && (
-            <Button onClick={() => setIsAddMealDialogOpen(true)}>
+            <Button onClick={() => setIsAddMealDialogOpen(true)} size="sm" className="flex-1 sm:flex-initial">
               <PlusCircle className="mr-2 h-4 w-4" /> Adicionar Refeição
             </Button>
           )}
         </div>
       </div>
-      <div className="space-y-4 pb-32">
+      <div className="space-y-4 pb-32 overflow-x-hidden">
         {dietPlan.map((meal) => {
           const isLogged = dietLogs.some(log => log.diet_plan_id === meal.id);
           return <MealCard key={meal.id} meal={meal} isLogged={isLogged} onMealLogged={handleMealLogged} />;

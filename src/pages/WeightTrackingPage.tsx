@@ -75,16 +75,17 @@ const WeightTrackingPage = () => {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">Meu Peso</h1>
-        <div className="flex gap-2">
-          <Button variant="outline" asChild>
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0">
+        <h1 className="text-2xl sm:text-3xl font-bold">Meu Peso</h1>
+        <div className="flex gap-2 w-full sm:w-auto">
+          <Button variant="outline" asChild size="sm" className="sm:h-auto">
             <NavLink to="/dashboard">
-              <Home className="mr-2 h-4 w-4" /> Dashboard
+              <Home className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Dashboard</span>
             </NavLink>
           </Button>
-          <Button onClick={() => setIsAddWeightDialogOpen(true)}>
+          <Button onClick={() => setIsAddWeightDialogOpen(true)} size="sm" className="flex-1 sm:flex-initial">
             <PlusCircle className="mr-2 h-4 w-4" /> Adicionar Peso
           </Button>
         </div>
@@ -97,7 +98,7 @@ const WeightTrackingPage = () => {
       />
 
       <WeightChart data={weightHistory} />
-      <WeightHistoryList data={weightHistory} />
+      <WeightHistoryList data={weightHistory} onUpdate={fetchWeightHistory} />
     </div>
   );
 };

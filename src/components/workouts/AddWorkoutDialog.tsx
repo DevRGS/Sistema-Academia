@@ -114,11 +114,16 @@ const AddWorkoutDialog = ({ isOpen, setIsOpen, onWorkoutAdded }) => {
         : (isPersonal && profile?.id 
           ? String(profile.id) 
           : data.user_id);
-      await insert('workouts', {
+      // Importar função para inicializar treinos com datas
+      const { initializeWorkoutWithDates, DEFAULT_ADAPTATION_PERIOD_DAYS } = await import('@/utils/workoutExpirationService');
+      
+      const workoutWithDates = initializeWorkoutWithDates({
         ...data,
         user_id: userId,
         created_at: new Date().toISOString(),
-      });
+      }, DEFAULT_ADAPTATION_PERIOD_DAYS);
+      
+      await insert('workouts', workoutWithDates);
       showSuccess('Treino criado com sucesso!');
       onWorkoutAdded();
       reset({

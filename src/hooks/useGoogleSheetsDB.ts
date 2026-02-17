@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { initializeGoogleAPI, getAccessToken } from '@/integrations/google/client';
+import { initializeGoogleAPI, getAccessToken, setAccessToken } from '@/integrations/google/client';
 import { cacheService } from '@/utils/cacheService';
 
 // Database schema - todas as tabelas do sistema
@@ -20,8 +20,8 @@ const TABLE_SCHEMAS = {
   ],
   diet_plans: ['id', 'user_id', 'meal', 'description', 'scheduled_time', 'calories', 'protein_g', 'carbs_g', 'fat_g'],
   diet_logs: ['id', 'user_id', 'diet_plan_id', 'logged_at'],
-  workouts: ['id', 'user_id', 'name', 'muscle_group', 'exercises', 'created_at'],
-  workout_logs: ['id', 'user_id', 'exercise_name', 'log_date', 'performance'],
+  workouts: ['id', 'user_id', 'name', 'muscle_group', 'exercises', 'created_at', 'start_date', 'expiration_date', 'status', 'adaptation_period_days'],
+  workout_logs: ['id', 'user_id', 'exercise_name', 'log_date', 'performance', 'workout_duration_seconds', 'rest_time_seconds', 'workout_id'],
   daily_nutrition_logs: ['id', 'user_id', 'log_date', 'total_calories', 'total_protein_g', 'total_carbs_g', 'total_fat_g', 'created_at'],
   personal_records: ['id', 'user_id', 'exercise_name', 'pr_weight', 'achieved_at'],
 };
@@ -59,6 +59,7 @@ type UseGoogleSheetsDBReturn = {
   originalSpreadsheetId: string | null;
   listPermissions: () => Promise<SpreadsheetPermission[]>;
   removePermission: (permissionId: string) => Promise<void>;
+  resetAndRecreateSheets: () => Promise<void>;
 };
 
 // Cache to prevent multiple simultaneous initializations
@@ -71,6 +72,7 @@ export const useGoogleSheetsDB = (): UseGoogleSheetsDBReturn => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(!!cachedSpreadsheetId);
+  const [forceReinit, setForceReinit] = useState(0);
 
   // Initialize Google API and find/create database
   useEffect(() => {
@@ -80,6 +82,41 @@ export const useGoogleSheetsDB = (): UseGoogleSheetsDBReturn => {
       return;
     }
 
+    // Check if we have a token - if not, wait for login
+    const token = getAccessToken();
+    if (!token) {
+      setLoading(false);
+      return;
+    }
+
+    // Listen for user login to force re-initialization
+    const handleUserLoggedIn = async () => {
+      console.log('useGoogleSheetsDB: User logged in event received, checking token...');
+      const token = getAccessToken();
+      if (token) {
+        console.log('useGoogleSheetsDB: Token found after login, forcing initialization...');
+        // Reset initialization state to force re-initialization
+        cachedSpreadsheetId = null;
+        initializationPromise = null;
+        setInitialized(false);
+        setSpreadsheetId(null);
+        setLoading(true);
+        
+        // Wait a bit for token to be fully stored
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Force re-initialization by incrementing forceReinit
+        if (window.gapi && window.gapi.client && token) {
+          window.gapi.client.setToken({ access_token: token });
+          console.log('useGoogleSheetsDB: Token set in gapi client after login');
+          // Force re-run by incrementing forceReinit
+          setForceReinit(prev => prev + 1);
+        }
+      }
+    };
+
+    window.addEventListener('userLoggedIn', handleUserLoggedIn);
+    
     const init = async () => {
       // If already initializing, wait for that promise
       if (initializationPromise) {
@@ -125,10 +162,28 @@ export const useGoogleSheetsDB = (): UseGoogleSheetsDBReturn => {
           }
 
           // Check if user is authenticated first
-          const token = getAccessToken();
+          let token = getAccessToken();
           if (!token) {
             setError('Not authenticated. Please sign in with Google.');
             return null;
+          }
+
+          // Verificar se o token é válido fazendo uma chamada de teste
+          try {
+            const testResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            
+            if (!testResponse.ok && testResponse.status === 401) {
+              console.warn('Token inválido ou expirado, tentando obter novo token...');
+              // Token expirado, limpar e pedir novo login
+              setAccessToken(null);
+              setError('Sessão expirada. Por favor, faça login novamente.');
+              return null;
+            }
+          } catch (testErr) {
+            console.warn('Erro ao verificar token:', testErr);
+            // Continuar mesmo assim, pode ser problema de rede
           }
 
           // Initialize gapi client (only for API calls, auth is handled by GIS)
@@ -138,18 +193,30 @@ export const useGoogleSheetsDB = (): UseGoogleSheetsDBReturn => {
             if (window.gapi && window.gapi.client && token) {
               window.gapi.client.setToken({ access_token: token });
               console.log('Token set in gapi client, verifying...');
+              // Verificar novamente o token (pode ter mudado)
+              token = getAccessToken();
+              if (token && window.gapi.client) {
+                window.gapi.client.setToken({ access_token: token });
+              }
               // Verify token is set
-              const setToken = window.gapi.client.getToken();
+              const setToken = window.gapi?.client?.getToken();
               if (setToken && setToken.access_token) {
                 console.log('Token verified in gapi client, length:', setToken.access_token.length);
               } else {
                 console.warn('Token not properly set in gapi client!');
+                // Tentar novamente com token do localStorage
+                const freshToken = getAccessToken();
+                if (freshToken && window.gapi.client) {
+                  window.gapi.client.setToken({ access_token: freshToken });
+                  console.log('Token re-set from localStorage');
+                }
               }
             }
           } catch (err: any) {
             // If initialization fails but we have a token, try to continue
             console.warn('GAPI initialization warning:', err);
             // Still try to set the token
+            token = getAccessToken(); // Obter token fresco
             if (window.gapi && window.gapi.client && token) {
               window.gapi.client.setToken({ access_token: token });
               console.log('Token set in gapi client (after error)');
@@ -178,6 +245,8 @@ export const useGoogleSheetsDB = (): UseGoogleSheetsDBReturn => {
           cachedSpreadsheetId = id;
           setSpreadsheetId(id);
           setInitialized(true);
+          // Disparar evento quando banco inicializar (para SessionContext recarregar perfil)
+          window.dispatchEvent(new CustomEvent('databaseInitialized', { detail: { spreadsheetId: id } }));
           return id;
         }
         return null;
@@ -207,7 +276,11 @@ export const useGoogleSheetsDB = (): UseGoogleSheetsDBReturn => {
     };
 
     init();
-  }, []);
+
+    return () => {
+      window.removeEventListener('userLoggedIn', handleUserLoggedIn);
+    };
+  }, [initialized, spreadsheetId, forceReinit]);
 
   // Find or create the APP_DB spreadsheet
   const findOrCreateSpreadsheet = async (): Promise<string> => {
@@ -1077,6 +1150,79 @@ export const useGoogleSheetsDB = (): UseGoogleSheetsDBReturn => {
     }
   }, [spreadsheetId]);
 
+  // Reset and recreate all sheets with proper headers
+  const resetAndRecreateSheets = useCallback(async (): Promise<void> => {
+    if (!spreadsheetId) throw new Error('Database not initialized');
+
+    try {
+      // Get all existing sheets
+      const spreadsheet = await window.gapi.client.sheets.spreadsheets.get({
+        spreadsheetId,
+      });
+
+      const existingSheets = spreadsheet.result.sheets || [];
+      const existingSheetNames = existingSheets.map((sheet: any) => sheet.properties.title);
+      const requiredSheets = Object.keys(TABLE_SCHEMAS);
+
+      // Step 1: Clear content and ensure headers for all required sheets
+      for (const sheetName of requiredSheets) {
+        try {
+          // Check if sheet exists
+          if (existingSheetNames.includes(sheetName)) {
+            // Clear all data from the sheet
+            await window.gapi.client.sheets.spreadsheets.values.clear({
+              spreadsheetId,
+              range: `${sheetName}!A:ZZ`,
+            });
+          } else {
+            // Create the sheet if it doesn't exist
+            await window.gapi.client.sheets.spreadsheets.batchUpdate({
+              spreadsheetId,
+              resource: {
+                requests: [{
+                  addSheet: {
+                    properties: {
+                      title: sheetName,
+                    },
+                  },
+                }],
+              },
+            });
+          }
+
+          // Add/update headers
+          const headers = TABLE_SCHEMAS[sheetName as keyof typeof TABLE_SCHEMAS];
+          await addHeaders(spreadsheetId, sheetName, headers);
+
+          // Small delay to avoid rate limiting
+          await new Promise(resolve => setTimeout(resolve, 200));
+        } catch (err: any) {
+          console.error(`Error processing sheet ${sheetName}:`, err);
+          // Continue with other sheets
+        }
+      }
+
+      // Step 2: Final check - ensure all headers are correct
+      for (const sheetName of requiredSheets) {
+        try {
+          await ensureHeaders(spreadsheetId, sheetName);
+          await new Promise(resolve => setTimeout(resolve, 100));
+        } catch (err: any) {
+          console.warn(`Error ensuring headers for ${sheetName}:`, err);
+        }
+      }
+
+      // Clear cache
+      await cacheService.clearCache();
+
+      console.log('All sheets reset and recreated successfully');
+    } catch (err: any) {
+      console.error('Error resetting sheets:', err);
+      const errorMessage = err.result?.error?.message || err.message || 'Erro desconhecido';
+      throw new Error(`Erro ao resetar abas: ${errorMessage}`);
+    }
+  }, [spreadsheetId]);
+
   return {
     spreadsheetId,
     loading,
@@ -1091,6 +1237,7 @@ export const useGoogleSheetsDB = (): UseGoogleSheetsDBReturn => {
     switchToSpreadsheet,
     listPermissions,
     removePermission,
+    resetAndRecreateSheets,
     originalSpreadsheetId,
   };
 };

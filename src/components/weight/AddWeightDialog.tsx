@@ -23,8 +23,8 @@ const weightSchema = z.object({
 type WeightFormData = z.infer<typeof weightSchema>;
 
 const AddWeightDialog = ({ isOpen, setIsOpen, onWeightAdded }: { isOpen: boolean; setIsOpen: (open: boolean) => void; onWeightAdded: () => void }) => {
-  const { user } = useSession();
-  const { insert, initialized } = useGoogleSheetsDB();
+  const { user, profile } = useSession();
+  const { insert, update, select, initialized, spreadsheetId, originalSpreadsheetId } = useGoogleSheetsDB();
   const {
     register,
     handleSubmit,
@@ -41,12 +41,55 @@ const AddWeightDialog = ({ isOpen, setIsOpen, onWeightAdded }: { isOpen: boolean
     }
 
     try {
+      // Determinar user_id correto (considerando planilhas compartilhadas)
+      const isViewingSharedSpreadsheet = spreadsheetId && originalSpreadsheetId && spreadsheetId !== originalSpreadsheetId;
+      const userId = (isViewingSharedSpreadsheet && profile?.id) ? String(profile.id) : String(user.id);
+
+      // 1. Adicionar ao histórico de peso
       await insert('weight_history', {
-        user_id: user.id,
+        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+        user_id: userId,
         weight_kg: data.weight_kg,
         created_at: new Date().toISOString(),
       });
-      showSuccess('Peso adicionado com sucesso!');
+
+      // 2. Atualizar peso no perfil (sincronização bilateral)
+      try {
+        const existingProfiles = await select<{ id: string }>('profiles', {
+          eq: { column: 'id', value: userId }
+        });
+
+        if (existingProfiles.length > 0) {
+          // Atualizar perfil existente
+          await update('profiles', {
+            weight_kg: data.weight_kg,
+          }, {
+            column: 'id',
+            value: userId
+          });
+          console.log('AddWeightDialog: Perfil atualizado com novo peso');
+        } else if (profile) {
+          // Criar perfil se não existir (caso raro)
+          await insert('profiles', {
+            id: userId,
+            first_name: profile.first_name || '',
+            last_name: profile.last_name || '',
+            role: profile.role || 'student',
+            email: user.email,
+            weight_kg: data.weight_kg,
+          });
+          console.log('AddWeightDialog: Perfil criado com novo peso');
+        }
+
+        // Disparar eventos para atualizar perfil no SessionContext e componentes
+        window.dispatchEvent(new CustomEvent('profileUpdated'));
+        window.dispatchEvent(new CustomEvent('weightAdded'));
+      } catch (profileError) {
+        console.error('AddWeightDialog: Erro ao atualizar perfil:', profileError);
+        // Não bloquear se falhar atualizar perfil, o histórico já foi salvo
+      }
+
+      showSuccess('Peso adicionado e perfil atualizado com sucesso!');
       onWeightAdded();
       reset();
       setIsOpen(false);

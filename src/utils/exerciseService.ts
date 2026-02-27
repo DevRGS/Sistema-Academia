@@ -52,7 +52,8 @@ const mapEstresse = (value: string): number => {
 // Carregar exercícios do CSV
 export const loadExercises = async (): Promise<Exercise[]> => {
   try {
-    const response = await fetch('/EXERCICIOS-CONTROLE - exercicios.csv');
+    const csvUrl = `${import.meta.env.BASE_URL}EXERCICIOS-CONTROLE - exercicios.csv`;
+    const response = await fetch(csvUrl);
     const text = await response.text();
     const lines = text.split('\n').filter(line => line.trim());
     const headers = lines[0].split(',').map(h => h.trim());
@@ -114,7 +115,8 @@ export const loadExercises = async (): Promise<Exercise[]> => {
 // Carregar limitações do CSV
 export const loadLimitations = async (): Promise<Limitation[]> => {
   try {
-    const response = await fetch('/EXERCICIOS-CONTROLE - limitacoes.csv');
+    const csvUrl = `${import.meta.env.BASE_URL}EXERCICIOS-CONTROLE - limitacoes.csv`;
+    const response = await fetch(csvUrl);
     const text = await response.text();
     const lines = text.split('\n').filter(line => line.trim());
     const headers = lines[0].split(',').map(h => h.trim());

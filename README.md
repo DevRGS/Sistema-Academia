@@ -1,6 +1,6 @@
 # Sistema Academia - Black Academy
 
-Sistema completo de gestão para academias e personal trainers, desenvolvido para gerenciar alunos, treinos, dietas, acompanhamento de peso, bioimpedância e relatórios. Utiliza **Google Sheets** como banco de dados, sem necessidade de servidor dedicado — ideal para hospedagem gratuita (ex.: GitHub Pages).
+Sistema completo de gestão para academias e personal trainers, desenvolvido para gerenciar alunos, treinos, dietas, acompanhamento de peso e relatórios. Utiliza **Google Sheets** como banco de dados.
 
 ## 🚀 Tecnologias
 
@@ -42,7 +42,6 @@ Sistema completo de gestão para academias e personal trainers, desenvolvido par
 
 ### ⚖️ Acompanhamento Físico
 - **Peso**: Registro e histórico com gráficos (rota `/weight-tracking`)
-- **Bioimpedância**: Componentes para composição corporal (massa gorda/magra, medidas segmentares, TMB, idade metabólica)
 - **Gráficos**: Evolução ao longo do tempo
 
 ### 📊 Relatórios

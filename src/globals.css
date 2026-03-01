@@ -95,11 +95,20 @@
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
   
-  /* Efeito de elevação nos cards */
+  /* Efeito de elevação nos cards - microinteração SaaS */
   .card-hover {
-    @apply transition-smooth;
-    @apply hover:shadow-xl hover:shadow-primary/10;
-    @apply hover:-translate-y-1;
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .card-hover:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.2), 0 8px 10px -6px rgb(0 0 0 / 0.1), 0 0 0 1px hsl(var(--primary) / 0.08);
+  }
+
+  /* Fundo com profundidade para dashboard (tema #0b1120) */
+  .dashboard-bg {
+    background: #0b1120;
+    background-image: radial-gradient(ellipse 80% 60% at 50% -20%, hsl(220 20% 18% / 0.6), transparent),
+                      radial-gradient(ellipse 60% 40% at 80% 50%, hsl(220 18% 12% / 0.4), transparent);
   }
   
   /* Gradiente dourado para botões primários */
@@ -126,6 +135,24 @@
   
   .animate-fade-in {
     animation: fadeIn 0.5s ease-out;
+  }
+
+  /* Ícone em círculo com fundo semi-transparente */
+  .icon-circle {
+    @apply flex items-center justify-center rounded-full w-9 h-9 shrink-0;
+    background-color: hsl(var(--primary) / 0.12);
+  }
+  .icon-circle svg {
+    @apply w-4 h-4;
+  }
+
+  /* Hero card - borda/glow sutil */
+  .hero-card {
+    position: relative;
+    box-shadow: 0 0 0 1px hsl(var(--primary) / 0.15), 0 4px 6px -1px rgb(0 0 0 / 0.15);
+  }
+  .hero-card:hover {
+    box-shadow: 0 0 0 1px hsl(var(--primary) / 0.25), 0 25px 50px -12px rgb(0 0 0 / 0.35);
   }
   
   /* Animação de scale suave */

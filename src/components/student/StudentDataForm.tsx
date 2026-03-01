@@ -30,6 +30,8 @@ type Profile = {
   locomotion_distance_km?: number | string;
   locomotion_time_minutes?: number | string;
   locomotion_days?: string[] | string;
+  weight_goal_type?: 'Ganhar Peso' | 'Perder Peso' | 'Manter Peso';
+  weight_goal_kg?: number | string;
 };
 
 const daysOfWeek = [
@@ -52,6 +54,8 @@ const studentDataSchema = z.object({
   locomotion_distance_km: z.coerce.number().positive('Distância deve ser positiva.').optional().nullable().default(null),
   locomotion_time_minutes: z.coerce.number().int().positive('Tempo deve ser positivo.').optional().nullable().default(null),
   locomotion_days: z.array(z.string()).optional().nullable().default([]),
+  weight_goal_type: z.enum(['Ganhar Peso', 'Perder Peso', 'Manter Peso']).optional().nullable().default(null),
+  weight_goal_kg: z.coerce.number().positive('Peso alvo deve ser positivo.').optional().nullable().default(null),
 });
 
 type StudentFormData = z.infer<typeof studentDataSchema>;
@@ -72,11 +76,15 @@ const StudentDataForm = () => {
       locomotion_distance_km: null,
       locomotion_time_minutes: null,
       locomotion_days: [],
+      weight_goal_type: null,
+      weight_goal_kg: null,
     },
   });
 
   const locomotionType = form.watch('locomotion_type');
   const showLocomotionDetails = locomotionType && ['Caminha', 'Corre', 'Bicicleta'].includes(locomotionType);
+  const weightGoalType = form.watch('weight_goal_type');
+  const showWeightGoalKg = weightGoalType === 'Ganhar Peso' || weightGoalType === 'Perder Peso';
 
   useEffect(() => {
     const loadProfileData = async () => {
@@ -145,6 +153,8 @@ const StudentDataForm = () => {
           locomotion_distance_km: profileData.locomotion_distance_km ? Number(profileData.locomotion_distance_km) : null,
           locomotion_time_minutes: profileData.locomotion_time_minutes ? Number(profileData.locomotion_time_minutes) : null,
           locomotion_days: Array.isArray(locomotionDays) ? locomotionDays : [],
+          weight_goal_type: (profileData as Profile).weight_goal_type || null,
+          weight_goal_kg: (profileData as Profile).weight_goal_kg != null ? Number((profileData as Profile).weight_goal_kg) : null,
         };
         
         console.log('StudentDataForm: Form data to set:', formData);
@@ -319,6 +329,46 @@ const StudentDataForm = () => {
                   <FormMessage />
                 </FormItem>
               )} />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <FormField control={form.control} name="weight_goal_type" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Objetivo</FormLabel>
+                  <Select
+                    onValueChange={(v) => {
+                      field.onChange(v || null);
+                      if (v === 'Manter Peso') form.setValue('weight_goal_kg', null);
+                    }}
+                    value={field.value || ''}
+                  >
+                    <FormControl><SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger></FormControl>
+                    <SelectContent>
+                      <SelectItem value="Ganhar Peso">Ganhar Peso</SelectItem>
+                      <SelectItem value="Perder Peso">Perder Peso</SelectItem>
+                      <SelectItem value="Manter Peso">Manter Peso</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              {showWeightGoalKg && (
+                <FormField control={form.control} name="weight_goal_kg" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Peso alvo (kg)</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        placeholder="Ex: 70"
+                        {...field}
+                        value={field.value ?? ''}
+                        onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              )}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField control={form.control} name="sex" render={({ field }) => (

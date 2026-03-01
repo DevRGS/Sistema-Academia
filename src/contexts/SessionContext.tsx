@@ -18,6 +18,8 @@ type Profile = {
   locomotion_distance_km?: number | string;
   locomotion_time_minutes?: number | string;
   locomotion_days?: string[] | string; // Can be array or JSON string
+  weight_goal_type?: 'Ganhar Peso' | 'Perder Peso' | 'Manter Peso';
+  weight_goal_kg?: number | string;
 };
 
 type GoogleUser = {
@@ -186,6 +188,8 @@ const { select, insert, delete: deleteRow, initialized, spreadsheetId, originalS
                 locomotion_distance_km: profileData.locomotion_distance_km,
                 locomotion_time_minutes: profileData.locomotion_time_minutes,
                 locomotion_days: profileData.locomotion_days,
+                weight_goal_type: profileData.weight_goal_type,
+                weight_goal_kg: profileData.weight_goal_kg,
               };
               console.log('Complete profile to set:', completeProfile);
               setProfile(completeProfile);
@@ -332,6 +336,8 @@ const { select, insert, delete: deleteRow, initialized, spreadsheetId, originalS
               locomotion_distance_km: profileData.locomotion_distance_km,
               locomotion_time_minutes: profileData.locomotion_time_minutes,
               locomotion_days: profileData.locomotion_days,
+              weight_goal_type: profileData.weight_goal_type,
+              weight_goal_kg: profileData.weight_goal_kg,
             };
             
             console.log('Profile loaded after database initialization:', completeProfile);
@@ -520,6 +526,8 @@ const { select, insert, delete: deleteRow, initialized, spreadsheetId, originalS
         locomotion_distance_km: profileData.locomotion_distance_km,
         locomotion_time_minutes: profileData.locomotion_time_minutes,
         locomotion_days: profileData.locomotion_days,
+        weight_goal_type: profileData.weight_goal_type,
+        weight_goal_kg: profileData.weight_goal_kg,
       };
       
       console.log('loadStudentProfile: Setting student profile:', studentProfile);
@@ -704,6 +712,8 @@ const { select, insert, delete: deleteRow, initialized, spreadsheetId, originalS
                 locomotion_distance_km: profileData.locomotion_distance_km,
                 locomotion_time_minutes: profileData.locomotion_time_minutes,
                 locomotion_days: profileData.locomotion_days,
+                weight_goal_type: profileData.weight_goal_type,
+                weight_goal_kg: profileData.weight_goal_kg,
               };
               console.log('Complete profile to set:', completeProfile);
               setProfile(completeProfile);

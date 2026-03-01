@@ -634,7 +634,7 @@ const ReportsDashboard = () => {
         {/* Workout Frequency Chart */}
         <Card>
           <CardHeader>
-            <CardTitle>Frequência de Exercícios Logados</CardTitle>
+            <CardTitle>Frequência de Exercícios</CardTitle>
             <CardDescription>Número de exercícios registrados por dia.</CardDescription>
           </CardHeader>
           <CardContent>

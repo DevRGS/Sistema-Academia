@@ -4,7 +4,7 @@ import { cacheService } from '@/utils/cacheService';
 
 // Database schema - todas as tabelas do sistema
 const TABLE_SCHEMAS = {
-  profiles: ['id', 'first_name', 'last_name', 'role', 'email', 'height_cm', 'weight_kg', 'sex', 'age', 'routine', 'locomotion_type', 'locomotion_distance_km', 'locomotion_time_minutes', 'locomotion_days', 'limitations'],
+  profiles: ['id', 'first_name', 'last_name', 'role', 'email', 'height_cm', 'weight_kg', 'sex', 'age', 'routine', 'locomotion_type', 'locomotion_distance_km', 'locomotion_time_minutes', 'locomotion_days', 'limitations', 'weight_goal_type', 'weight_goal_kg'],
   profile_history: ['id', 'user_id', 'height_cm', 'weight_kg', 'sex', 'age', 'routine', 'locomotion_type', 'locomotion_distance_km', 'locomotion_time_minutes', 'locomotion_days', 'created_at'],
   weight_history: ['id', 'user_id', 'weight_kg', 'created_at'],
   bioimpedance_records: [
@@ -21,7 +21,7 @@ const TABLE_SCHEMAS = {
   diet_plans: ['id', 'user_id', 'meal', 'description', 'scheduled_time', 'calories', 'protein_g', 'carbs_g', 'fat_g'],
   diet_logs: ['id', 'user_id', 'diet_plan_id', 'logged_at'],
   workouts: ['id', 'user_id', 'name', 'muscle_group', 'exercises', 'created_at', 'start_date', 'expiration_date', 'status', 'adaptation_period_days'],
-  workout_logs: ['id', 'user_id', 'exercise_name', 'log_date', 'performance', 'workout_duration_seconds', 'rest_time_seconds', 'workout_id'],
+  workout_logs: ['id', 'user_id', 'exercise_name', 'log_date', 'performance', 'workout_duration_seconds', 'rest_time_seconds', 'workout_id', 'intensity'],
   daily_nutrition_logs: ['id', 'user_id', 'log_date', 'total_calories', 'total_protein_g', 'total_carbs_g', 'total_fat_g', 'created_at'],
   personal_records: ['id', 'user_id', 'exercise_name', 'pr_weight', 'achieved_at'],
 };

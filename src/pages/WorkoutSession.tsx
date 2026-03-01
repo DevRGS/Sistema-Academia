@@ -15,6 +15,15 @@ import { CheckCircle, PartyPopper, Home, Play, Info, ArrowRight, Pause, PlayCirc
 import { useSession } from '@/contexts/SessionContext';
 import { hasExerciseGif } from '@/utils/exerciseGifs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
 type PerformanceData = {
   sets: {
@@ -63,6 +72,9 @@ const WorkoutSessionPage = () => {
   
   // Tempo de início de cada exercício
   const [exerciseStartTimes, setExerciseStartTimes] = useState<{ [index: number]: Date }>({});
+  // Intensidade ao finalizar treino (para EAT)
+  const [showIntensityDialog, setShowIntensityDialog] = useState(false);
+  const [selectedIntensity, setSelectedIntensity] = useState<'leve' | 'moderado' | 'intenso'>('moderado');
 
   const { control, getValues, setValue } = useForm<FormData>({
     defaultValues: {
@@ -283,14 +295,16 @@ const WorkoutSessionPage = () => {
     }
   };
 
-  const handleFinishWorkout = async () => {
+  const handleFinishWorkout = async (intensity?: string) => {
     if (!workout || !user || !initialized || !startTime) return;
+    setShowIntensityDialog(false);
 
     try {
       const performanceData = getValues('exercises');
       const today = new Date().toISOString().split('T')[0];
       const workoutDurationSeconds = elapsedTime; // Total workout time in seconds
-      
+      const intensityValue = intensity ?? '';
+
       const logsToInsert = workout.exercises.map((exercise, index) => {
         // Calcular tempo total de descanso das séries
         const exerciseTimers = setTimers[index] || {};
@@ -332,10 +346,12 @@ const WorkoutSessionPage = () => {
           workout_duration_seconds: workoutDurationSeconds,
           rest_time_seconds: totalRestTime,
           workout_id: workoutId || '',
+          intensity: intensityValue,
         };
       });
 
       await insert('workout_logs', logsToInsert);
+      window.dispatchEvent(new CustomEvent('workoutLogged'));
       showSuccess('Treino concluído e salvo com sucesso!');
       setIsFinished(true);
     } catch (error) {
@@ -605,7 +621,7 @@ const WorkoutSessionPage = () => {
             ) : (
               <Button 
                 type="button" 
-                onClick={handleFinishWorkout} 
+                onClick={() => setShowIntensityDialog(true)} 
                 size="lg"
                 className="bg-green-600 hover:bg-green-700 w-full sm:w-auto sm:min-w-[180px]"
               >
@@ -626,6 +642,44 @@ const WorkoutSessionPage = () => {
         exerciseName={currentExercise.name}
       />
     )}
+
+    {/* Dialog: intensidade do treino (para cálculo de gasto calórico EAT) */}
+    <Dialog open={showIntensityDialog} onOpenChange={setShowIntensityDialog}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Intensidade do treino</DialogTitle>
+          <DialogDescription>
+            Qual foi a intensidade do treino? Isso ajuda a estimar seu gasto calórico do dia.
+          </DialogDescription>
+        </DialogHeader>
+        <RadioGroup
+          value={selectedIntensity}
+          onValueChange={(v) => setSelectedIntensity(v as 'leve' | 'moderado' | 'intenso')}
+          className="grid gap-3 py-2"
+        >
+          <div className="flex items-center space-x-2">
+            <RadioGroupItem value="leve" id="leve" />
+            <Label htmlFor="leve" className="font-normal cursor-pointer">Leve (MET 4)</Label>
+          </div>
+          <div className="flex items-center space-x-2">
+            <RadioGroupItem value="moderado" id="moderado" />
+            <Label htmlFor="moderado" className="font-normal cursor-pointer">Moderado (MET 6)</Label>
+          </div>
+          <div className="flex items-center space-x-2">
+            <RadioGroupItem value="intenso" id="intenso" />
+            <Label htmlFor="intenso" className="font-normal cursor-pointer">Intenso (MET 8)</Label>
+          </div>
+        </RadioGroup>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setShowIntensityDialog(false)}>
+            Cancelar
+          </Button>
+          <Button onClick={() => handleFinishWorkout(selectedIntensity)}>
+            Salvar e finalizar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
     </div>
   );
 };

@@ -37,6 +37,8 @@ const personalDataSchema = z.object({
   locomotion_distance_km: z.coerce.number().positive('Distância deve ser positiva.').optional().nullable().default(null),
   locomotion_time_minutes: z.coerce.number().int().positive('Tempo deve ser positivo.').optional().nullable().default(null),
   locomotion_days: z.array(z.string()).optional().nullable().default([]),
+  weight_goal_type: z.enum(['Ganhar Peso', 'Perder Peso', 'Manter Peso']).optional().nullable().default(null),
+  weight_goal_kg: z.coerce.number().positive('Peso alvo deve ser positivo.').optional().nullable().default(null),
 });
 
 type PersonalDataFormData = z.infer<typeof personalDataSchema>;
@@ -63,11 +65,15 @@ const OnboardingWizard = () => {
       locomotion_distance_km: null,
       locomotion_time_minutes: null,
       locomotion_days: [],
+      weight_goal_type: null,
+      weight_goal_kg: null,
     },
   });
 
   const locomotionType = form.watch('locomotion_type');
   const showLocomotionDetails = locomotionType && ['Caminha', 'Corre', 'Bicicleta'].includes(locomotionType);
+  const weightGoalType = form.watch('weight_goal_type');
+  const showWeightGoalKg = weightGoalType === 'Ganhar Peso' || weightGoalType === 'Perder Peso';
 
   useEffect(() => {
     const loadData = async () => {
@@ -117,7 +123,6 @@ const OnboardingWizard = () => {
         role: profile?.role || 'student',
         email: user.email,
         ...formData,
-        // Ensure locomotion_days is stored as JSON string
         locomotion_days: JSON.stringify(formData.locomotion_days || []),
         limitations: limitationsJson,
       };
@@ -373,6 +378,52 @@ const OnboardingWizard = () => {
                     <FormMessage />
                   </FormItem>
                 )} />
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <FormField control={form.control} name="weight_goal_type" render={({ field }) => (
+                    <FormItem className="space-y-2">
+                      <FormLabel className="text-base font-semibold">Objetivo</FormLabel>
+                      <Select
+                        onValueChange={(v) => {
+                          field.onChange(v || null);
+                          if (v === 'Manter Peso') form.setValue('weight_goal_kg', null);
+                        }}
+                        value={field.value || ''}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="h-12 text-lg">
+                            <SelectValue placeholder="Selecione seu objetivo" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="Ganhar Peso">Ganhar Peso</SelectItem>
+                          <SelectItem value="Perder Peso">Perder Peso</SelectItem>
+                          <SelectItem value="Manter Peso">Manter Peso</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  {showWeightGoalKg && (
+                    <FormField control={form.control} name="weight_goal_kg" render={({ field }) => (
+                      <FormItem className="space-y-2">
+                        <FormLabel className="text-base font-semibold">Peso alvo (kg)</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            step="0.1"
+                            placeholder="Ex: 70"
+                            className="h-12 text-lg"
+                            {...field}
+                            value={field.value ?? ''}
+                            onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                  )}
+                </div>
 
                 <div className="border-t pt-6 space-y-4">
                   <div className="flex items-center gap-2">

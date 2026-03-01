@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useSession } from '@/contexts/SessionContext';
 import { useGoogleSheetsDB } from '@/hooks/useGoogleSheetsDB';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
 import { Weight } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { Skeleton } from '../ui/skeleton';
@@ -142,14 +143,31 @@ const WeightCard = () => {
     ? latestWeight - previousWeight
     : null;
 
+  const goalKg: number | null =
+    profile?.weight_goal_kg != null && (profile?.weight_goal_type === 'Ganhar Peso' || profile?.weight_goal_type === 'Perder Peso')
+      ? typeof profile.weight_goal_kg === 'string'
+        ? Number(profile.weight_goal_kg)
+        : profile.weight_goal_kg
+      : null;
+  const hasValidGoal = latestWeight !== null && goalKg !== null && goalKg > 0;
+  const progressPercent: number | null = hasValidGoal && goalKg !== null && latestWeight !== null
+    ? profile?.weight_goal_type === 'Perder Peso'
+      ? Math.min(100, Math.round((goalKg / latestWeight) * 100))
+      : profile?.weight_goal_type === 'Ganhar Peso'
+        ? Math.min(100, Math.round((latestWeight / goalKg) * 100))
+        : null
+    : null;
+
   return (
     <NavLink to="/weight-tracking" className="no-underline">
       <Card className="card-hover h-full animate-fade-in">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Peso Atual</CardTitle>
-          <Weight className="h-4 w-4 text-primary" />
+          <div className="icon-circle">
+            <Weight className="h-4 w-4 text-primary" />
+          </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
           {latestWeight !== null ? (
             <>
               <div className="text-2xl font-bold text-primary">{latestWeight} kg</div>
@@ -158,6 +176,23 @@ const WeightCard = () => {
                   {weightDifference > 0 ? '+' : ''}{weightDifference.toFixed(1)} kg desde a última pesagem
                 </p>
               )}
+              <div className="pt-1">
+                <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                  <span>Meta de peso</span>
+                  {progressPercent !== null ? (
+                    <span>{progressPercent}%</span>
+                  ) : (
+                    <span>—</span>
+                  )}
+                </div>
+                <Progress
+                  value={progressPercent ?? 0}
+                  className="h-1.5 bg-secondary"
+                />
+                {progressPercent === null && (
+                  <p className="text-[11px] text-muted-foreground mt-0.5">Defina sua meta em Configurações</p>
+                )}
+              </div>
             </>
           ) : (
             <>
@@ -165,6 +200,13 @@ const WeightCard = () => {
               <p className="text-xs text-muted-foreground">
                 Clique para adicionar seu primeiro peso.
               </p>
+              <div className="pt-1">
+                <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                  <span>Meta de peso</span>
+                  <span>—</span>
+                </div>
+                <Progress value={0} className="h-1.5 bg-secondary" />
+              </div>
             </>
           )}
         </CardContent>

@@ -28,6 +28,10 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      # Workaround: npm às vezes não instala opcionais do Rollup no CI (https://github.com/npm/cli/issues/4828)
+      - name: Install Rollup native binding (Linux)
+        run: npm install @rollup/rollup-linux-x64-gnu --no-save
+
       - name: Build
         run: npm run build
 
